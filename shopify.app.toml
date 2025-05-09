@@ -1,0 +1,28 @@
+# Learn more about configuring your app at https://shopify.dev/docs/apps/tools/cli/configuration
+
+client_id = "aeeb5a0125694f9a00b74968e3d69b66"
+name = "Epic Fulfill: Bulk Orders"
+handle = "epic-fulfill-bulk-orders"
+application_url = "https://websites-says-lee-enhanced.trycloudflare.com"
+embedded = true
+
+[build]
+include_config_on_deploy = true
+automatically_update_urls_on_dev = true
+
+[webhooks]
+api_version = "2025-04"
+
+[access_scopes]
+# Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
+scopes = "read_customers,read_orders,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_third_party_fulfillment_orders"
+
+[auth]
+redirect_urls = [
+  "https://websites-says-lee-enhanced.trycloudflare.com/auth/callback",
+  "https://websites-says-lee-enhanced.trycloudflare.com/auth/shopify/callback",
+  "https://websites-says-lee-enhanced.trycloudflare.com/api/auth/callback"
+]
+
+[pos]
+embedded = false
