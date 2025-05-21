@@ -1,0 +1,26 @@
+# fly.toml app configuration file generated for epic-fulfill-bulk-orders on 2025-05-09T14:08:44+05:30
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+
+app = "epic-fulfill-bulk-orders"
+primary_region = "bom"
+
+[env]
+  PORT = "8081"
+  HOST = "https://epic-fulfill-bulk-orders.fly.dev"
+  SHOPIFY_API_KEY = "aeeb5a0125694f9a00b74968e3d69b66"
+  SCOPES = "read_customers,read_orders,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_third_party_fulfillment_orders"
+
+[build]
+
+[http_service]
+  internal_port = 8081
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+[[vm]]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
