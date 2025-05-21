@@ -21,8 +21,8 @@
     "i18next": "^25.2.0",
     "multer": "^2.0.0",
     "path-to-regexp": "^8.2.0",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-i18next": "^15.5.1",
     "serve-static": "^2.2.0",
     "xlsx": "^0.18.5"

@@ -50,6 +50,14 @@ export default defineConfig({
   resolve: {
     preserveSymlinks: true,
   },
+  optimizeDeps: {
+    include: ["xlsx/xlsx.mjs"],
+  },
+  build: {
+    rollupOptions: {
+      external: ["fs", "path", "crypto", "stream"],
+    },
+  },
   server: {
     host: "localhost",
     port: process.env.FRONTEND_PORT,
