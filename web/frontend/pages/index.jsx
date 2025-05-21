@@ -84,9 +84,9 @@ export default function HomePage() {
             </Stack>
           </Card>
         </Layout.Section>
-        <Layout.Section>
+        {/* <Layout.Section>
           <ProductsCard />
-        </Layout.Section>
+        </Layout.Section> */}
       </Layout>
     </Page>
   );

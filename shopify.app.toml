@@ -3,7 +3,7 @@
 client_id = "aeeb5a0125694f9a00b74968e3d69b66"
 name = "Epic Fulfill: Bulk Orders"
 handle = "epic-fulfill-bulk-orders"
-application_url = "https://strand-tony-entrepreneurs-mardi.trycloudflare.com"
+application_url = "https://itself-britney-circumstances-latex.trycloudflare.com"
 embedded = true
 
 [build]
@@ -19,9 +19,9 @@ scopes = "read_products,write_products,read_customers,read_orders,write_assigned
 
 [auth]
 redirect_urls = [
-  "https://strand-tony-entrepreneurs-mardi.trycloudflare.com/auth/callback",
-  "https://strand-tony-entrepreneurs-mardi.trycloudflare.com/auth/shopify/callback",
-  "https://strand-tony-entrepreneurs-mardi.trycloudflare.com/api/auth/callback"
+  "https://itself-britney-circumstances-latex.trycloudflare.com/auth/callback",
+  "https://itself-britney-circumstances-latex.trycloudflare.com/auth/shopify/callback",
+  "https://itself-britney-circumstances-latex.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]

@@ -19,7 +19,8 @@ export default function App() {
         <QueryProvider>
           <NavMenu>
             <a href="/" rel="home" />
-            <a href="/pagename">{t("NavigationMenu.pageName")}</a>
+            <a href="/fulfillorder">{t("NavigationMenu.fulfillOrder")}</a>
+            <a href="/feedback">{t("NavigationMenu.feedback")}</a>
           </NavMenu>
           <Routes pages={pages} />
         </QueryProvider>

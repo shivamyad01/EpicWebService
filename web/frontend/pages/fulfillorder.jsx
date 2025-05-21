@@ -12,9 +12,9 @@ import {
 } from "@shopify/polaris";
 import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
 import { useTranslation } from "react-i18next";
-import * as XLSX from "xlsx"; // ✅ Static import
+import * as XLSX from "xlsx";
 
-export default function PageName() {
+export default function FulfillOrder() {
   const { t } = useTranslation();
   const shopify = useAppBridge();
 
@@ -93,30 +93,7 @@ export default function PageName() {
       <TitleBar title={t("PageName.title")} />
 
       <Layout>
-        <Layout.Section>
-          <Card sectioned>
-            <Stack alignment="center" distribution="equalSpacing">
-              <div>
-                <Text variant="headingLg" as="h2">
-                  {t("PageName.heading")}
-                </Text>
-                <TextContainer>
-                  <p>{t("PageName.body")}</p>
-                </TextContainer>
-              </div>
-              <Stack spacing="tight">
-                <Button primary onClick={() => console.log("Primary action")}>
-                  {t("PageName.primaryAction")}
-                </Button>
-                <Button onClick={() => console.log("Secondary action")}>
-                  {t("PageName.secondaryAction")}
-                </Button>
-              </Stack>
-            </Stack>
-          </Card>
-        </Layout.Section>
-
-        <Layout.Section>
+          <Layout.Section>
           <Card
             title={t(
               "BulkFulfillmentCard.title",
