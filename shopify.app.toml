@@ -3,25 +3,29 @@
 client_id = "aeeb5a0125694f9a00b74968e3d69b66"
 name = "Epic Fulfill: Bulk Orders"
 handle = "epic-fulfill-bulk-orders"
-application_url = "https://itself-britney-circumstances-latex.trycloudflare.com"
+application_url = "https://enemy-cart-chess-happened.trycloudflare.com"
 embedded = true
 
 [build]
-include_config_on_deploy = true
 automatically_update_urls_on_dev = true
+include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-04"
 
+  [[webhooks.subscriptions]]
+  uri = "/api/webhooks"
+  compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_products,write_products,read_customers,read_orders,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_third_party_fulfillment_orders"
+scopes = "read_customers,read_orders,read_products,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_products,write_third_party_fulfillment_orders"
 
 [auth]
 redirect_urls = [
-  "https://itself-britney-circumstances-latex.trycloudflare.com/auth/callback",
-  "https://itself-britney-circumstances-latex.trycloudflare.com/auth/shopify/callback",
-  "https://itself-britney-circumstances-latex.trycloudflare.com/api/auth/callback"
+  "https://enemy-cart-chess-happened.trycloudflare.com/auth/callback",
+  "https://enemy-cart-chess-happened.trycloudflare.com/auth/shopify/callback",
+  "https://enemy-cart-chess-happened.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]

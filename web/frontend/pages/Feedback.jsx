@@ -20,9 +20,16 @@ export default function Feedback() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
 
+  const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
   const handleSubmit = async () => {
-    if (!feedback.trim()) {
-      setError(t("Feedback.errorMessage"));
+    if (!name.trim() || !email.trim() || !feedback.trim()) {
+      setError("All fields are required.");
+      return;
+    }
+
+    if (!isValidEmail(email)) {
+      setError("Please enter a valid email.");
       return;
     }
 
@@ -30,14 +37,16 @@ export default function Feedback() {
     setSubmitted(false);
 
     try {
-      // Optional: Send to backend
-      await fetch("/api/feedback", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ name, email, feedback }),
-      });
+      await fetch(
+        "https://script.google.com/macros/s/AKfycbxsLd3ovlX-n-BhRzPq332JhN8i7CHqLFWlDGI_tV7AlvDFmo9XdmCz9h58k0tsUccgPw/exec",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain", // Prevents preflight
+          },
+          body: JSON.stringify({ name, email, feedback }),
+        }
+      );
 
       setSubmitted(true);
       setName("");
@@ -49,43 +58,61 @@ export default function Feedback() {
   };
 
   return (
-    <Page title={t("Feedback.title")}>
-      <TitleBar title={t("Feedback.title")} />
+    <Page title={t("Feedback.title") || "Feedback"}>
+      <TitleBar title={t("Feedback.title") || "Feedback"} />
       <Layout>
         <Layout.Section>
           <Card sectioned>
             <Text as="h2" variant="headingMd">
-              {t("Feedback.subtitle")}
+              {t("Feedback.subtitle") || "We value your feedback!"}
             </Text>
 
-            <TextField
-              label={t("Feedback.nameLabel")}
-              value={name}
-              onChange={(val) => setName(val)}
-              autoComplete="off"
-            />
+            <div style={{ marginTop: 16 }}>
+              <TextField
+                label="Name"
+                value={name}
+                onChange={setName}
+                autoComplete="name"
+                requiredIndicator
+              />
+            </div>
 
-            <TextField
-              label={t("Feedback.emailLabel")}
-              type="email"
-              value={email}
-              onChange={(val) => setEmail(val)}
-              autoComplete="email"
-            />
+            <div style={{ marginTop: 16 }}>
+              <TextField
+                label="Email"
+                type="email"
+                value={email}
+                onChange={setEmail}
+                autoComplete="email"
+                requiredIndicator
+              />
+            </div>
 
-            <TextField
-              label={t("Feedback.feedbackLabel")}
-              value={feedback}
-              onChange={(val) => setFeedback(val)}
-              multiline={4}
-            />
+            <div style={{ marginTop: 16 }}>
+              <TextField
+                label="Your Feedback"
+                value={feedback}
+                onChange={setFeedback}
+                multiline={4}
+                autoComplete="off"
+                requiredIndicator
+              />
+            </div>
 
-            <Button onClick={handleSubmit} primary>
-              {t("Feedback.submitButton")}
-            </Button>
+            <div style={{ marginTop: 20 }}>
+              <Button onClick={handleSubmit} primary fullWidth>
+                {t("Feedback.submitButton") || "Submit Feedback"}
+              </Button>
+            </div>
 
             {submitted && (
-              <Banner title={t("Feedback.successMessage")} status="success" />
+              <Banner
+                title={
+                  t("Feedback.successMessage") || "Thanks for your feedback!"
+                }
+                status="success"
+                onDismiss={() => setSubmitted(false)}
+              />
             )}
 
             {error && (
