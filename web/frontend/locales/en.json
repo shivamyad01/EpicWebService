@@ -1,11 +1,10 @@
 {
   "HomePage": {
     "heading": "Welcome to Epic Bulk Order Fulfillment 🚚",
-    "learnMore": "Learn more about how to use this app in the Shopify tutorial 📚",
     "startPopulatingYourApp": "Start by uploading your bulk fulfillment file to process orders quickly and efficiently.",
     "title": "Epic Bulk Order Fulfillment",
     "trophyAltText": "Great job setting up Epic Bulk Order Fulfillment",
-    "yourAppIsReadyToExplore": "Your app is ready to explore! Use it to manage bulk order fulfillment easily with the Polaris design system, Shopify Admin API, and App Bridge."
+    "yourAppIsReadyToExplore": "Ready to go! Use this app to upload and fulfill your Shopify orders in bulk, hassle-free."
   }
   ,
   "NavigationMenu": {

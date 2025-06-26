@@ -57,19 +57,7 @@ export default function HomePage() {
                     />
                   </p>
                   <p>{t("HomePage.startPopulatingYourApp")}</p>
-                  <p>
-                    <Trans
-                      i18nKey="HomePage.learnMore"
-                      components={{
-                        ShopifyTutorialLink: (
-                          <Link
-                            url="https://shopify.dev/apps/getting-started/add-functionality"
-                            external
-                          />
-                        ),
-                      }}
-                    />
-                  </p>
+                 
                 </TextContainer>
               </Stack.Item>
               <Stack.Item>

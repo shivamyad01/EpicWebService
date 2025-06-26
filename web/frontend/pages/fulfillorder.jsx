@@ -1,8 +1,8 @@
 import React, { useState } from "react";
 import {
-  Card,
   Page,
   Layout,
+  Card,
   Text,
   Button,
   Stack,
@@ -10,13 +10,13 @@ import {
   DropZone,
   HorizontalGrid,
   Box,
+  Spinner,
+  Badge,
 } from "@shopify/polaris";
-import { TitleBar, useAppBridge } from "@shopify/app-bridge-react";
+import { TitleBar } from "@shopify/app-bridge-react";
 import * as XLSX from "xlsx";
 
 export default function FulfillOrder() {
-  const shopify = useAppBridge();
-
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
@@ -49,10 +49,9 @@ export default function FulfillOrder() {
       }
 
       setResult(data.summary);
-      setFile(null); // Clear file after success
+      setFile(null);
     } catch (err) {
       setError(err.message);
-      shopify.toast?.show?.(err.message, { isError: true });
     } finally {
       setUploading(false);
     }
@@ -61,10 +60,9 @@ export default function FulfillOrder() {
   const handleDownloadSample = () => {
     const sampleData = [
       {
-        OrderNumber: "#1025", // Custom format allowed (could be ORD-1025, etc.)
+        OrderNumber: "#1025",
         TrackingNumber: "RX123456789IN",
         TrackingCompany: "India Post",
-        TrackingUrl: "",
       },
     ];
 
@@ -87,13 +85,34 @@ export default function FulfillOrder() {
     link.click();
   };
 
+  const handleDownloadReport = async () => {
+    try {
+      const res = await fetch("/api/orders/fulfillment-report/download");
+
+      if (!res.ok) {
+        throw new Error("Failed to download report");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.setAttribute("download", `fulfillment_report.xlsx`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (err) {
+      alert(err.message || "Download failed");
+    }
+  };
+
   const renderImportSummary = () => {
     if (!result) return null;
 
     const total = result.length;
     const success = result.filter((r) => !r.error).length;
     const failed = total - success;
-    const status = failed > 0 ? "Failed" : "Complete";
+    const status = failed > 0 ? "Failed" : "Success";
 
     return (
       <Layout.Section>
@@ -103,38 +122,70 @@ export default function FulfillOrder() {
               columns={{ xs: 1, sm: 6 }}
               gap="4"
               alignItems="center"
-              paddingBlockStart="200"
-              paddingBlockEnd="200"
               borderColor="border"
               borderRadius="base"
               background="bg-surface"
             >
-              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                Date
-              </Text>
-              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                Import Source
-              </Text>
-              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                Total Upload
-              </Text>
-              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                Successful
-              </Text>
-              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                Failed
-              </Text>
-              <Text as="span" variant="bodyMd" fontWeight="semibold">
-                Status
-              </Text>
+              <Text fontWeight="semibold">Date</Text>
+              <Text fontWeight="semibold">Import Source</Text>
+              <Text fontWeight="semibold">Total Upload</Text>
+              <Text fontWeight="semibold">Successful</Text>
+              <Text fontWeight="semibold">Failed</Text>
+              <Text fontWeight="semibold">Status</Text>
 
-              <Text as="span">{new Date().toLocaleDateString("en-GB")}</Text>
-              <Text as="span">Epic Fulfill</Text>
-              <Text as="span">{total}</Text>
-              <Text as="span">{success}</Text>
-              <Text as="span">{failed}</Text>
-              <Text as="span">{status}</Text>
+              <Text>{new Date().toLocaleDateString("en-GB")}</Text>
+              <Text>Epic Fulfill</Text>
+              <Text>{total}</Text>
+              <Text>{success}</Text>
+              <Text>{failed}</Text>
+              <Text>
+                <Badge tone={failed > 0 ? "critical" : "success"}>
+                  {status}
+                </Badge>
+              </Text>
             </HorizontalGrid>
+          </Box>
+        </Card>
+      </Layout.Section>
+    );
+  };
+
+  const renderDetailedResults = () => {
+    if (!result) return null;
+
+    return (
+      <Layout.Section>
+        <Card title="Detailed Order Report" sectioned>
+          <HorizontalGrid
+            columns={{ xs: 1, sm: 5 }}
+            gap="4"
+            borderColor="border"
+            borderRadius="base"
+            background="bg-surface"
+          >
+            <Text fontWeight="semibold">Order Number</Text>
+            <Text fontWeight="semibold">Tracking Number</Text>
+            <Text fontWeight="semibold">Tracking Company</Text>
+            <Text fontWeight="semibold">Status</Text>
+            <Text fontWeight="semibold">Reason</Text>
+
+            {result.map((r, index) => (
+              <React.Fragment key={index}>
+                <Text>{r.orderNumber}</Text>
+                <Text>{r.trackingNumber || "-"}</Text>
+                <Text>{r.trackingCompany || "-"}</Text>
+                <Text tone={r.error ? "critical" : "success"}>
+                  {r.error ? "Failed" : "Success"}
+                </Text>
+                <Text>{r.error || "Fulfilled successfully"}</Text>
+              </React.Fragment>
+            ))}
+          </HorizontalGrid>
+
+          <Box paddingBlockStart="4">
+            <Button onClick={handleDownloadReport}>
+              Download Report Excel
+            </Button>
           </Box>
         </Card>
       </Layout.Section>
@@ -192,7 +243,16 @@ export default function FulfillOrder() {
           </Card>
         </Layout.Section>
 
+        {uploading && (
+          <Layout.Section>
+            <Card sectioned>
+              <Spinner accessibilityLabel="Uploading" size="large" />
+            </Card>
+          </Layout.Section>
+        )}
+
         {renderImportSummary()}
+        {renderDetailedResults()}
       </Layout>
     </Page>
   );
