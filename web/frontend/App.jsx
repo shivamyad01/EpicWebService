@@ -21,6 +21,7 @@ export default function App() {
             <a href="/" rel="home" />
             <a href="/fulfillorder">{t("NavigationMenu.fulfillOrder")}</a>
             <a href="/feedback">{t("NavigationMenu.feedback")}</a>
+            <a href="/settings">Settings</a>
           </NavMenu>
           <Routes pages={pages} />
         </QueryProvider>

@@ -106,12 +106,68 @@ app.post(
             continue;
           }
 
+          // Check if order is fulfilled
           if (orderData.fulfillment_status === "fulfilled") {
+            let trackingUpdated = false;
+            
+            // Process each fulfillment in the order
+            if (orderData.fulfillments && orderData.fulfillments.length > 0) {
+              for (const fulfillment of orderData.fulfillments) {
+                // Check if this fulfillment has no tracking number but we have one in the sheet
+                if ((!fulfillment.tracking_number || fulfillment.tracking_number === '') && trackingNumber) {
+                  try {
+                    // Update the tracking info for this fulfillment
+                    await axios.post(
+                      `https://${shop}/admin/api/2024-04/fulfillments/${fulfillment.id}/update_tracking.json`,
+                      {
+                        fulfillment: {
+                          tracking_info: {
+                            number: trackingNumber,
+                            company: trackingCompany,
+                            url: trackingUrl
+                          },
+                          notify_customer: true
+                        }
+                      },
+                      {
+                        headers: { 
+                          'X-Shopify-Access-Token': accessToken,
+                          'Content-Type': 'application/json'
+                        }
+                      }
+                    );
+                    
+                    trackingUpdated = true;
+                  } catch (updateError) {
+                    console.error('Error updating tracking for fulfillment', fulfillment.id, ':', updateError.response?.data || updateError.message);
+                  }
+                }
+              }
+              
+              if (trackingUpdated) {
+                results.push({
+                  orderNumber: orderNumberRaw,
+                  trackingNumber,
+                  trackingCompany,
+                  status: "Tracking updated",
+                  error: null
+                });
+                continue;
+              }
+            }
+            
+            // If we reached here, either tracking wasn't updated or wasn't needed
+            const hasAnyTracking = orderData.fulfillments?.some(
+              f => f.tracking_number && f.tracking_number !== ''
+            );
+            
             results.push({
               orderNumber: orderNumberRaw,
-              trackingNumber,
+              trackingNumber: trackingNumber || '',
               trackingCompany,
-              error: "Order already fulfilled",
+              error: hasAnyTracking 
+                ? "Order already has tracking" 
+                : (trackingNumber ? "Failed to update tracking" : "No tracking provided in sheet")
             });
             continue;
           }
@@ -292,6 +348,114 @@ app.get("/api/orders/fulfillment-report/download", (req, res) => {
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
+// Settings API endpoints
+app.get("/api/settings", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const shop = session.shop;
+
+    // In a real app, you would fetch settings from a database
+    // For now, we'll use a default settings object
+    const defaultSettings = {
+      general: {
+        storeName: "",
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        currency: "USD",
+        dateFormat: "MM/DD/YYYY",
+        timeFormat: "12h",
+      },
+      orders: {
+        autoFulfill: true,
+        defaultCarrier: "UPS",
+        notifyCustomers: true,
+        lowStockThreshold: 10,
+      },
+      notifications: {
+        email: {
+          orderUpdates: true,
+          lowStock: true,
+          systemAlerts: true,
+          emailAddress: "",
+        },
+        desktop: {
+          newOrders: true,
+          fulfillmentUpdates: true,
+          systemAlerts: true,
+        },
+      },
+      integrations: {
+        shopify: {
+          enabled: true,
+          apiKey: "",
+          webhookUrl: "",
+        },
+        googleAnalytics: {
+          enabled: false,
+          trackingId: "",
+        },
+      },
+      shipping: {
+        defaultOrigin: {
+          name: "",
+          street: "",
+          city: "",
+          state: "",
+          zip: "",
+          country: "United States",
+        },
+        carriers: [
+          { id: "ups", name: "UPS", enabled: true },
+          { id: "fedex", name: "FedEx", enabled: true },
+          { id: "usps", name: "USPS", enabled: false },
+          { id: "dhl", name: "DHL", enabled: false },
+        ],
+      },
+      advanced: {
+        debugMode: false,
+        apiLogging: false,
+        cacheEnabled: true,
+      },
+    };
+
+    // In a real app, you would fetch settings from your database here
+    // const settings = await getSettingsFromDatabase(shop);
+    // return res.status(200).json(settings || defaultSettings);
+
+    // For now, just return the default settings
+    return res.status(200).json(defaultSettings);
+  } catch (error) {
+    console.error("Error fetching settings:", error);
+    return res.status(500).json({ error: "Failed to fetch settings" });
+  }
+});
+
+app.post("/api/settings", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const shop = session.shop;
+    const settings = req.body;
+
+    if (!settings) {
+      return res.status(400).json({ error: "No settings provided" });
+    }
+
+    // In a real app, you would save the settings to your database here
+    // await saveSettingsToDatabase(shop, settings);
+
+    // For now, just log the settings and return success
+    console.log(
+      `Saving settings for ${shop}:`,
+      JSON.stringify(settings, null, 2)
+    );
+
+    return res.status(200).json({ message: "Settings saved successfully" });
+  } catch (error) {
+    console.error("Error saving settings:", error);
+    return res.status(500).json({ error: "Failed to save settings" });
+  }
+});
+
+// Serve the frontend for all other routes
 app.use("/*", async (req, res) => {
   const shop = req.query.shop || res.locals.shopify?.session?.shop;
   if (!shop) {

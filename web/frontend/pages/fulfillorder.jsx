@@ -21,6 +21,8 @@ export default function FulfillOrder() {
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   const handleDropZoneDrop = (_dropFiles, acceptedFiles) => {
     setFile(acceptedFiles[0]);
@@ -112,80 +114,376 @@ export default function FulfillOrder() {
     const total = result.length;
     const success = result.filter((r) => !r.error).length;
     const failed = total - success;
-    const status = failed > 0 ? "Failed" : "Success";
+    const status = failed > 0 ? "Failed" : "Fulfilled successfully";
+    const statusTone = failed > 0 ? "warning" : "success";
 
     return (
       <Layout.Section>
-        <Card title="Import Summary">
-          <Box padding="4">
-            <HorizontalGrid
-              columns={{ xs: 1, sm: 6 }}
-              gap="4"
-              alignItems="center"
-              borderColor="border"
-              borderRadius="base"
-              background="bg-surface"
+        <Card
+          title={
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div
+                style={{
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "50%",
+                  backgroundColor: failed > 0 ? "#ffea8a" : "#bfedc1",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                {failed > 0 ? (
+                  <span style={{ color: "#9f6b08", fontSize: "14px" }}>!</span>
+                ) : (
+                  <span style={{ color: "#10782e", fontSize: "14px" }}>✓</span>
+                )}
+              </div>
+              <span>Import Summary</span>
+            </div>
+          }
+        >
+          <div style={{ padding: "16px" }}>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
+                gap: "16px",
+                marginBottom: "16px",
+              }}
             >
-              <Text fontWeight="semibold">Date</Text>
-              <Text fontWeight="semibold">Import Source</Text>
-              <Text fontWeight="semibold">Total Upload</Text>
-              <Text fontWeight="semibold">Successful</Text>
-              <Text fontWeight="semibold">Failed</Text>
-              <Text fontWeight="semibold">Status</Text>
+              <div style={summaryCardStyle}>
+                <Text variant="bodySm" color="subdued">
+                  Total Orders
+                </Text>
+                <Text variant="headingXl" as="h3">
+                  {total}
+                </Text>
+              </div>
+              <div style={summaryCardStyle}>
+                <Text variant="bodySm" color="subdued">
+                  Successful
+                </Text>
+                <Text variant="headingXl" as="h3" color="success">
+                  {success}
+                  {total > 0 && (
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        marginLeft: "8px",
+                        color: "#6d7175",
+                      }}
+                    ></span>
+                  )}
+                </Text>
+              </div>
+              <div style={summaryCardStyle}>
+                <Text variant="bodySm" color="subdued">
+                  Failed
+                </Text>
+                <Text
+                  variant="headingXl"
+                  as="h3"
+                  color={failed > 0 ? "critical" : "success"}
+                >
+                  {failed}
+                  {total > 0 && (
+                    <span
+                      style={{
+                        fontSize: "14px",
+                        marginLeft: "8px",
+                        color: failed > 0 ? "#d82c0d" : "#6d7175",
+                      }}
+                    ></span>
+                  )}
+                </Text>
+              </div>
+            </div>
 
-              <Text>{new Date().toLocaleDateString("en-GB")}</Text>
-              <Text>Epic Fulfill</Text>
-              <Text>{total}</Text>
-              <Text>{success}</Text>
-              <Text>{failed}</Text>
-              <Text>
-                <Badge tone={failed > 0 ? "critical" : "success"}>
-                  {status}
-                </Badge>
-              </Text>
-            </HorizontalGrid>
-          </Box>
+            <div
+              style={{
+                backgroundColor: "#f9fafb",
+                borderRadius: "8px",
+                padding: "16px",
+                marginTop: "16px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                }}
+              >
+                <div>
+                  <Text variant="bodySm" color="subdued">
+                    Status
+                  </Text>
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      marginTop: "4px",
+                    }}
+                  >
+                    <Badge status={statusTone} />
+                    <Text variant="bodyMd" fontWeight="medium">
+                      {status}
+                    </Text>
+                  </div>
+                </div>
+                <div>
+                  <Text variant="bodySm" color="subdued">
+                    Date
+                  </Text>
+                  <Text variant="bodyMd" fontWeight="medium">
+                    {new Date().toLocaleString("en-GB", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                </div>
+                <div>
+                  <Text variant="bodySm" color="subdued">
+                    Source
+                  </Text>
+                  <Text variant="bodyMd" fontWeight="medium">
+                    Epic Fulfill
+                  </Text>
+                </div>
+              </div>
+            </div>
+          </div>
         </Card>
       </Layout.Section>
     );
   };
 
+  const summaryCardStyle = {
+    backgroundColor: "#fff",
+    border: "1px solid #e1e3e5",
+    borderRadius: "8px",
+    padding: "16px",
+    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
+  };
+
   const renderDetailedResults = () => {
     if (!result) return null;
 
+    // Calculate pagination
+    const totalItems = result.length;
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedItems = result.slice(startIndex, startIndex + itemsPerPage);
+
+    const handlePageChange = (newPage) => {
+      setCurrentPage(newPage);
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    };
+
     return (
       <Layout.Section>
-        <Card title="Detailed Order Report" sectioned>
-          <HorizontalGrid
-            columns={{ xs: 1, sm: 5 }}
-            gap="4"
-            borderColor="border"
-            borderRadius="base"
-            background="bg-surface"
-          >
-            <Text fontWeight="semibold">Order Number</Text>
-            <Text fontWeight="semibold">Tracking Number</Text>
-            <Text fontWeight="semibold">Tracking Company</Text>
-            <Text fontWeight="semibold">Status</Text>
-            <Text fontWeight="semibold">Reason</Text>
-
-            {result.map((r, index) => (
-              <React.Fragment key={index}>
-                <Text>{r.orderNumber}</Text>
-                <Text>{r.trackingNumber || "-"}</Text>
-                <Text>{r.trackingCompany || "-"}</Text>
-                <Text tone={r.error ? "critical" : "success"}>
-                  {r.error ? "Failed" : "Success"}
-                </Text>
-                <Text>{r.error || "Fulfilled successfully"}</Text>
-              </React.Fragment>
-            ))}
-          </HorizontalGrid>
+        <Card
+          title={
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
+              <span>Detailed Order Report</span>
+              <Button onClick={handleDownloadReport} size="slim">
+                Download Full Report
+              </Button>
+            </div>
+          }
+          sectioned
+        >
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ backgroundColor: "#f9fafb" }}>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      borderBottom: "1px solid #e1e3e5",
+                    }}
+                  >
+                    #
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      borderBottom: "1px solid #e1e3e5",
+                    }}
+                  >
+                    Order #
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      borderBottom: "1px solid #e1e3e5",
+                    }}
+                  >
+                    Tracking #
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      borderBottom: "1px solid #e1e3e5",
+                    }}
+                  >
+                    Company
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      borderBottom: "1px solid #e1e3e5",
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "12px",
+                      borderBottom: "1px solid #e1e3e5",
+                    }}
+                  >
+                    Details
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {paginatedItems.map((r, index) => {
+                  const itemNumber = startIndex + index + 1;
+                  return (
+                    <tr
+                      key={itemNumber}
+                      style={{
+                        borderBottom: "1px solid #f4f6f8",
+                        backgroundColor:
+                          index % 2 === 0 ? "#ffffff" : "#f9fafb",
+                        transition: "background-color 0.2s ease",
+                      }}
+                    >
+                      <td style={{ padding: "12px", color: "#6d7175" }}>
+                        {itemNumber}
+                      </td>
+                      <td style={{ padding: "12px" }}>{r.orderNumber}</td>
+                      <td style={{ padding: "12px" }}>
+                        {r.trackingNumber || "-"}
+                      </td>
+                      <td style={{ padding: "12px" }}>
+                        {r.trackingCompany || "-"}
+                      </td>
+                      <td style={{ padding: "12px" }}>
+                        <Badge status={r.error ? "critical" : "success"}>
+                          {r.error ? "Failed" : "Success"}
+                        </Badge>
+                      </td>
+                      <td style={{ padding: "12px" }}>
+                        <Text
+                          tone={r.error ? "critical" : "success"}
+                          variant="bodySm"
+                        >
+                          {r.error || "Fulfilled successfully"}
+                        </Text>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
 
           <Box paddingBlockStart="4">
-            <Button onClick={handleDownloadReport}>
-              Download Report Excel
-            </Button>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: "16px",
+              }}
+            >
+              <Text variant="bodySm" color="subdued">
+                Showing {startIndex + 1} to{" "}
+                {Math.min(startIndex + itemsPerPage, totalItems)} of{" "}
+                {totalItems} orders
+              </Text>
+
+              {totalPages > 1 && (
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <Button
+                    onClick={() => handlePageChange(1)}
+                    disabled={currentPage === 1}
+                    size="slim"
+                  >
+                    «
+                  </Button>
+                  <Button
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    size="slim"
+                  >
+                    ‹
+                  </Button>
+
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    // Show pages around current page
+                    let pageNum;
+                    if (totalPages <= 5) {
+                      pageNum = i + 1;
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1;
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i;
+                    } else {
+                      pageNum = currentPage - 2 + i;
+                    }
+
+                    return (
+                      <Button
+                        key={pageNum}
+                        onClick={() => handlePageChange(pageNum)}
+                        primary={currentPage === pageNum}
+                        size="slim"
+                      >
+                        {pageNum}
+                      </Button>
+                    );
+                  })}
+
+                  <Button
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    size="slim"
+                  >
+                    ›
+                  </Button>
+                  <Button
+                    onClick={() => handlePageChange(totalPages)}
+                    disabled={currentPage === totalPages}
+                    size="slim"
+                  >
+                    »
+                  </Button>
+                </div>
+              )}
+            </div>
           </Box>
         </Card>
       </Layout.Section>
@@ -204,7 +502,23 @@ export default function FulfillOrder() {
               type="file"
               onDrop={handleDropZoneDrop}
             >
-              <DropZone.FileUpload />
+              <div style={{ padding: "16px", textAlign: "center" }}>
+                <div
+                  style={{
+                    width: "48px",
+                    height: "48px",
+                    backgroundColor: "#f4f6f8",
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    margin: "0 auto 0px",
+                  }}
+                >
+                  <span style={{ fontSize: "24px" }}>📤</span>
+                </div>
+                <DropZone.FileUpload />
+              </div>
               {file && (
                 <Stack vertical spacing="tight" alignment="center">
                   <Text variant="bodyMd" fontWeight="medium">
@@ -244,11 +558,29 @@ export default function FulfillOrder() {
         </Layout.Section>
 
         {uploading && (
-          <Layout.Section>
-            <Card sectioned>
-              <Spinner accessibilityLabel="Uploading" size="large" />
-            </Card>
-          </Layout.Section>
+          <div
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: "rgba(255, 255, 255, 0.8)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+            }}
+          >
+            <div style={{ textAlign: "center" }}>
+              <Spinner accessibilityLabel="Uploading file" size="large" />
+              <div style={{ marginTop: "16px" }}>
+                <Text variant="bodyMd" as="p">
+                  Processing your file...
+                </Text>
+              </div>
+            </div>
+          </div>
         )}
 
         {renderImportSummary()}

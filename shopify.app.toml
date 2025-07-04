@@ -3,7 +3,7 @@
 client_id = "aeeb5a0125694f9a00b74968e3d69b66"
 name = "Epic Fulfill: Bulk Orders"
 handle = "epic-fulfill-bulk-orders"
-application_url = "https://ordering-compliant-beam-trustees.trycloudflare.com"
+application_url = "https://window-mechanisms-omissions-paths.trycloudflare.com"
 embedded = true
 
 [build]
@@ -23,9 +23,9 @@ scopes = "read_customers,read_orders,read_products,write_assigned_fulfillment_or
 
 [auth]
 redirect_urls = [
-  "https://ordering-compliant-beam-trustees.trycloudflare.com/auth/callback",
-  "https://ordering-compliant-beam-trustees.trycloudflare.com/auth/shopify/callback",
-  "https://ordering-compliant-beam-trustees.trycloudflare.com/api/auth/callback"
+  "https://window-mechanisms-omissions-paths.trycloudflare.com/auth/callback",
+  "https://window-mechanisms-omissions-paths.trycloudflare.com/auth/shopify/callback",
+  "https://window-mechanisms-omissions-paths.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
