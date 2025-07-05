@@ -82,7 +82,7 @@ export default function BulkOrderFulfillmentPage() {
     {
       title: "Complete Fulfillment",
       description:
-        "With one click, fulfill all your orders. Get a detailed report of the fulfillment process.",
+        "Easily fulfill all orders with one click. Generate detailed reports instantly. Save time, reduce errors, and streamline your fulfillment process.",
       icon: SettingsMajor,
     },
   ];
@@ -271,8 +271,10 @@ export default function BulkOrderFulfillmentPage() {
             marginRight: "auto",
           }}
         >
-          Start processing your orders in bulk today and see the difference it
-          makes for your business.
+          <div style={{ opacity: 0.9,marginTop: "16px" }} >
+            Start processing your orders in bulk today and see the difference it
+            makes for your business.
+          </div>
         </Text>
         <div style={{ marginTop: "15px" }}>
           <Button
