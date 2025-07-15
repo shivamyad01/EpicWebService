@@ -3,7 +3,7 @@
 client_id = "aeeb5a0125694f9a00b74968e3d69b66"
 name = "Epic Fulfill: Bulk Orders"
 handle = "epic-fulfill-bulk-orders"
-application_url = "https://first-consistent-nominations-employers.trycloudflare.com"
+application_url = "https://medicare-booty-switching-hint.trycloudflare.com"
 embedded = true
 
 [build]
@@ -17,15 +17,31 @@ api_version = "2025-04"
   uri = "/api/webhooks"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
+  [[webhooks.subscriptions]]
+  topic = "orders/create"
+  uri = "/api/webhooks/orders"
+
+  [[webhooks.subscriptions]]
+  topic = "orders/updated"
+  uri = "/api/webhooks/orders"
+
+  [[webhooks.subscriptions]]
+  topic = "fulfillments/create"
+  uri = "/api/webhooks/fulfillments"
+
+  [[webhooks.subscriptions]]
+  topic = "fulfillments/updated"
+  uri = "/api/webhooks/fulfillments"
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_customers,read_orders,read_products,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_products,write_third_party_fulfillment_orders"
 
 [auth]
 redirect_urls = [
-  "https://first-consistent-nominations-employers.trycloudflare.com/auth/callback",
-  "https://first-consistent-nominations-employers.trycloudflare.com/auth/shopify/callback",
-  "https://first-consistent-nominations-employers.trycloudflare.com/api/auth/callback"
+  "https://medicare-booty-switching-hint.trycloudflare.com/auth/callback",
+  "https://medicare-booty-switching-hint.trycloudflare.com/auth/shopify/callback",
+  "https://medicare-booty-switching-hint.trycloudflare.com/api/auth/callback"
 ]
 
 [pos]
