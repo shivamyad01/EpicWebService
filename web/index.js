@@ -78,7 +78,7 @@ app.post(
 
         try {
           const restRes = await axios.get(
-            `https://${shop}/admin/api/2024-04/orders.json?status=any&order_number=${orderNumber}`,
+            `https://${shop}/admin/api/2024-10/orders.json?status=any&order_number=${orderNumber}`,
             { headers: { "X-Shopify-Access-Token": accessToken } }
           );
 
@@ -118,7 +118,7 @@ app.post(
                   try {
                     // Update the tracking info for this fulfillment
                     await axios.post(
-                      `https://${shop}/admin/api/2024-04/fulfillments/${fulfillment.id}/update_tracking.json`,
+                      `https://${shop}/admin/api/2024-10/fulfillments/${fulfillment.id}/update_tracking.json`,
                       {
                         fulfillment: {
                           tracking_info: {

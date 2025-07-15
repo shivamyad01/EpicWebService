@@ -11,7 +11,7 @@ automatically_update_urls_on_dev = true
 include_config_on_deploy = true
 
 [webhooks]
-api_version = "2025-04"
+api_version = "2024-10"
 
   [[webhooks.subscriptions]]
   uri = "/api/webhooks"
