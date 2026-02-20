@@ -7,6 +7,7 @@ primary_region = "bom"
 [env]
   PORT = "8081"
   HOST = "https://epic-fulfill-bulk-orders.fly.dev"
+  SHOPIFY_API_KEY = "aeeb5a0125694f9a00b74968e3d69b66"
   SCOPES = "read_customers,read_orders,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_third_party_fulfillment_orders"
 
 [build]
