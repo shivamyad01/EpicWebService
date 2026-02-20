@@ -12,7 +12,7 @@ web/
 ├── product-creator.js       # Product creation utility (optional)
 │
 ├── config/
-│   └── index.js             # Application configuration
+│   └── index.js             # Application configuration (rate limits, tracking URLs, etc.)
 │
 ├── routes/
 │   ├── index.js             # Route aggregator
@@ -21,12 +21,12 @@ web/
 │
 ├── controllers/
 │   ├── index.js             # Controllers index
-│   ├── order.controller.js  # Order controller
+│   ├── order.controller.js  # Order controller (batch processing)
 │   └── settings.controller.js # Settings controller
 │
 ├── services/
 │   ├── index.js             # Services index
-│   ├── fulfillment.service.js # Fulfillment business logic
+│   ├── fulfillment.service.js # Fulfillment business logic (with retry & rate limiting)
 │   └── settings.service.js  # Settings service
 │
 ├── middleware/
@@ -50,10 +50,37 @@ web/
 This app follows a **layered architecture** pattern:
 
 1. **Routes** - Define API endpoints and link to controllers
-2. **Controllers** - Handle HTTP requests/responses
-3. **Services** - Contain business logic
+2. **Controllers** - Handle HTTP requests/responses, batch processing
+3. **Services** - Contain business logic with retry logic and rate limiting
 4. **Middleware** - Cross-cutting concerns (auth, validation, uploads)
 5. **Utils** - Helper functions and constants
+
+## Key Features
+
+### 1. Bulk Order Fulfillment
+- Upload Excel/CSV file with order numbers and tracking info
+- **Column validation** - Validates required columns exist
+- **Flexible column names** - Supports OrderNumber/Name/Order Number formats
+- **Batch processing** - Orders processed in batches of 10
+- **Rate limiting** - 250ms delay between API calls
+- **Retry logic** - 3 retries with exponential backoff for transient failures
+- Automatic order lookup via Shopify API
+- Fulfillment creation with tracking numbers
+- Updates tracking for already fulfilled orders
+
+### 2. Per-Shop Data Isolation
+- Fulfillment summaries stored per shop
+- Settings stored per shop
+
+### 3. File Validation
+- File type validation (xlsx, xls, csv)
+- File size limits (10MB default)
+- Automatic temp file cleanup
+
+### 4. Enhanced Report
+- Detailed Excel report with summary sheet
+- Success rate calculation
+- Fulfillment IDs included
 
 ## API Endpoints
 
@@ -72,23 +99,6 @@ This app follows a **layered architecture** pattern:
 | GET | `/api/settings` | Get shop settings |
 | POST | `/api/settings` | Save shop settings |
 
-## Key Features
-
-1. **Bulk Order Fulfillment**
-   - Upload Excel/CSV file with order numbers and tracking info
-   - Automatic order lookup via Shopify API
-   - Fulfillment creation with tracking numbers
-   - Updates tracking for already fulfilled orders
-
-2. **Per-Shop Data Isolation**
-   - Fulfillment summaries stored per shop
-   - Settings stored per shop
-
-3. **File Validation**
-   - File type validation (xlsx, xls, csv)
-   - File size limits (5MB default)
-   - Automatic temp file cleanup
-
 ## Configuration
 
 Edit `config/index.js` to customize:
@@ -96,13 +106,43 @@ Edit `config/index.js` to customize:
 ```javascript
 export const config = {
   port: 3000,
+  
   upload: {
-    maxFileSize: 5 * 1024 * 1024, // 5MB
+    maxFileSize: 10 * 1024 * 1024, // 10MB
     allowedExtensions: [".xlsx", ".xls", ".csv"]
   },
-  defaultTrackingCompany: "India Post"
+  
+  fulfillment: {
+    maxOrdersPerRequest: 500,
+    batchSize: 10,
+    batchDelayMs: 500,
+    rateLimitDelayMs: 250,
+    maxRetries: 3
+  },
+  
+  defaultTrackingCompany: "India Post",
+  
+  // Carrier-specific tracking URL templates
+  trackingUrlTemplates: {
+    "India Post": "https://www.indiapost.gov.in/...",
+    "BlueDart": "https://www.bluedart.com/...",
+    "Delhivery": "https://www.delhivery.com/..."
+  }
 };
 ```
+
+## Excel File Format
+
+| Column | Required | Description |
+|--------|----------|-------------|
+| OrderNumber | Yes | Order number (e.g., #1025 or 1025) |
+| TrackingNumber | Yes | Tracking/AWB number |
+| TrackingCompany | No | Carrier name (default: India Post) |
+| TrackingUrl | No | Custom tracking URL |
+
+Alternative column names supported:
+- `Name`, `Order Number`, `order_number` for OrderNumber
+- `Tracking Number`, `tracking_number` for TrackingNumber
 
 ## Running the App
 

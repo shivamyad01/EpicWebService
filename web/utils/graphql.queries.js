@@ -6,16 +6,23 @@
 export const GET_FULFILLMENT_ORDERS = `
   query GetFulfillmentOrders($id: ID!) {
     order(id: $id) {
-      fulfillmentOrders(first: 10) {
+      id
+      name
+      fulfillmentOrders(first: 20) {
         edges {
           node {
             id
             status
-            lineItems(first: 50) {
+            requestStatus
+            assignedLocation {
+              name
+            }
+            lineItems(first: 100) {
               edges {
                 node {
                   id
                   remainingQuantity
+                  totalQuantity
                 }
               }
             }

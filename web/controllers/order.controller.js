@@ -13,6 +13,15 @@ import {
   generateFulfillmentReport
 } from "../services/fulfillment.service.js";
 
+// Batch processing configuration
+const BATCH_SIZE = 10; // Process orders in batches
+const BATCH_DELAY = 500; // ms delay between batches
+
+/**
+ * Sleep utility
+ */
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
 /**
  * Bulk fulfill orders from uploaded Excel file
  */
@@ -22,14 +31,54 @@ export const bulkFulfillOrders = async (req, res) => {
   const client = new shopify.api.clients.Graphql({ session });
 
   try {
-    // Parse Excel file
-    const orders = parseExcelFile(req.file.path);
+    // Parse Excel file with validation
+    let orders;
+    try {
+      orders = parseExcelFile(req.file.path);
+    } catch (parseError) {
+      cleanupTempFile(req.file.path);
+      return res.status(400).json({ 
+        error: "Failed to parse file",
+        message: parseError.message 
+      });
+    }
+    
+    // Validate order count
+    if (orders.length === 0) {
+      cleanupTempFile(req.file.path);
+      return res.status(400).json({ 
+        error: "No orders found in file" 
+      });
+    }
+    
+    // Limit maximum orders per request
+    const MAX_ORDERS = 500;
+    if (orders.length > MAX_ORDERS) {
+      cleanupTempFile(req.file.path);
+      return res.status(400).json({ 
+        error: `Too many orders. Maximum ${MAX_ORDERS} orders per file.`,
+        count: orders.length 
+      });
+    }
+    
     const results = [];
-
-    // Process each order
-    for (const order of orders) {
-      const result = await processOrderFulfillment(order, session, client);
-      results.push(result);
+    const totalOrders = orders.length;
+    
+    // Process orders in batches
+    for (let i = 0; i < totalOrders; i += BATCH_SIZE) {
+      const batch = orders.slice(i, i + BATCH_SIZE);
+      
+      // Process batch concurrently but with controlled parallelism
+      const batchResults = await Promise.all(
+        batch.map(order => processOrderFulfillment(order, session, client))
+      );
+      
+      results.push(...batchResults);
+      
+      // Delay between batches to avoid rate limits
+      if (i + BATCH_SIZE < totalOrders) {
+        await sleep(BATCH_DELAY);
+      }
     }
 
     // Store results for later retrieval
@@ -38,7 +87,18 @@ export const bulkFulfillOrders = async (req, res) => {
     // Clean up temp file
     cleanupTempFile(req.file.path);
 
-    return res.status(200).json({ summary: results });
+    // Calculate summary stats
+    const successCount = results.filter(r => !r.error).length;
+    const failedCount = results.filter(r => r.error).length;
+
+    return res.status(200).json({ 
+      summary: results,
+      stats: {
+        total: totalOrders,
+        success: successCount,
+        failed: failedCount
+      }
+    });
   } catch (err) {
     console.error("Bulk fulfillment error:", err);
     

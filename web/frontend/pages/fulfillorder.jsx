@@ -65,12 +65,34 @@ export default function FulfillOrder() {
         OrderNumber: "#1025",
         TrackingNumber: "RX123456789IN",
         TrackingCompany: "India Post",
+        TrackingUrl: ""
       },
+      {
+        OrderNumber: "#1026",
+        TrackingNumber: "EX987654321IN",
+        TrackingCompany: "BlueDart",
+        TrackingUrl: "https://www.bluedart.com/tracking?ref=EX987654321IN"
+      },
+      {
+        OrderNumber: "1027",
+        TrackingNumber: "CP123456789IN",
+        TrackingCompany: "Delhivery",
+        TrackingUrl: ""
+      }
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    
+    // Set column widths for better readability
+    worksheet['!cols'] = [
+      { wch: 15 }, // OrderNumber
+      { wch: 20 }, // TrackingNumber
+      { wch: 15 }, // TrackingCompany
+      { wch: 50 }  // TrackingUrl
+    ];
+    
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Sample");
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
 
     const excelBuffer = XLSX.write(workbook, {
       bookType: "xlsx",

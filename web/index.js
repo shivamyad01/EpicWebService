@@ -74,8 +74,44 @@ app.use("/*", async (req, res) => {
 });
 
 // =============================================================================
+// GLOBAL ERROR HANDLER
+// =============================================================================
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  
+  // Don't expose internal errors to clients
+  const statusCode = err.statusCode || 500;
+  const message = process.env.NODE_ENV === "production" 
+    ? "An unexpected error occurred" 
+    : err.message;
+  
+  res.status(statusCode).json({
+    error: message,
+    ...(process.env.NODE_ENV !== "production" && { stack: err.stack })
+  });
+});
+
+// =============================================================================
 // SERVER STARTUP
 // =============================================================================
-app.listen(config.port, () => {
+const server = app.listen(config.port, () => {
   console.log(`🚀 Server is running on port ${config.port}`);
+  console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+// Graceful shutdown
+process.on("SIGTERM", () => {
+  console.log("SIGTERM received, shutting down gracefully...");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
+});
+
+process.on("SIGINT", () => {
+  console.log("SIGINT received, shutting down gracefully...");
+  server.close(() => {
+    console.log("Server closed");
+    process.exit(0);
+  });
 });
