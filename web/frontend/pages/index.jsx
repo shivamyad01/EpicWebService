@@ -127,7 +127,7 @@ export default function BulkOrderFulfillmentPage() {
       >
         <div style={{ position: "relative", zIndex: 1, maxWidth: "800px" }}>
           <Text variant="headingXl" as="h1" fontWeight="bold">
-            Welcome to Epic Bulk Order Fulfill
+            Welcome to Epic Bulk Order Fulfillment
           </Text>
           <div
             style={{
