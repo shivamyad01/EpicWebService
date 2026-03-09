@@ -74,7 +74,7 @@ jobs:
             set -e
 
             # Navigate to app directory
-            cd /opt/epicfulfill
+            cd /var/www/EpicWebService
 
             # Login to GHCR
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin

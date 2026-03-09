@@ -3,6 +3,7 @@ FROM node:18-alpine AS frontend-build
 
 ARG SHOPIFY_API_KEY
 ENV SHOPIFY_API_KEY=$SHOPIFY_API_KEY
+ENV CI=true
 
 WORKDIR /app/frontend
 COPY web/frontend/package.json web/frontend/package-lock.json* ./
