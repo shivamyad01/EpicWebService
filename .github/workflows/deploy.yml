@@ -7,93 +7,92 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+  IMAGE_NAME: shivamyad01/epicwebservice
 
 jobs:
-  # ════════════════════════════════════════════════════════════════
-  # 1. Build Docker image and push to GHCR
-  # ════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════
+# 1. Build Docker Image & Push to GHCR
+# ═══════════════════════════════════════
   build:
     runs-on: ubuntu-latest
+
     permissions:
       contents: read
       packages: write
 
     steps:
-      - name: Checkout code
+
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to GitHub Container Registry
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          registry: ghcr.io
+          username: shivamyad01
+          password: ${{ secrets.GHCR_PAT }}
 
-      - name: Extract metadata (tags, labels)
+      - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/shivamyad01/epicwebservice
           tags: |
-            type=sha,prefix=
             type=raw,value=latest
+            type=sha
 
-      - name: Build and push Docker image
+      - name: Build and Push Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             SHOPIFY_API_KEY=${{ secrets.SHOPIFY_API_KEY }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # ════════════════════════════════════════════════════════════════
-  # 2. Deploy to VPS via SSH
-  # ════════════════════════════════════════════════════════════════
+
+# ═══════════════════════════════════════
+# 2. Deploy to VPS via SSH
+# ═══════════════════════════════════════
   deploy:
     runs-on: ubuntu-latest
     needs: build
-    environment: production
 
     steps:
-      - name: Debug SSH Connection
-        run: |
-          echo "VPS Host: ${{ secrets.VPS_HOST }}"
-          echo "VPS User: ${{ secrets.VPS_USER }}"
-          echo "VPS Port: ${{ secrets.VPS_SSH_PORT || 22 }}"
 
       - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
+          username: root
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ secrets.VPS_SSH_PORT || 22 }}
+          port: 22
           timeout: 60s
           command_timeout: 10m
+
           script: |
             set -e
 
-            # Navigate to app directory
+            echo "🚀 Starting deployment..."
+
             cd /var/www/EpicWebService
 
-            # Login to GHCR
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            echo "🔐 Logging into GHCR..."
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u shivamyad01 --password-stdin
 
-            # Pull latest image
-            docker pull ghcr.io/${{ github.repository }}:latest
+            echo "⬇️ Pulling latest image..."
+            docker pull ghcr.io/shivamyad01/epicwebservice:latest
 
-            # Restart services with zero-downtime
+            echo "🔄 Restarting container..."
             docker compose up -d --no-deps --remove-orphans app
 
-            # Cleanup old images
+            echo "🧹 Cleaning old Docker images..."
             docker image prune -f
 
             echo "✅ Deployment complete!"
