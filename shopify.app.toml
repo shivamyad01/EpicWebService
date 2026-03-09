@@ -3,12 +3,11 @@
 client_id = "aeeb5a0125694f9a00b74968e3d69b66"
 name = "Epic Fulfill: Bulk Orders"
 handle = "epic-fulfill-bulk-orders"
-application_url = "https://gravity-bucks-rhythm-bag.trycloudflare.com"
+application_url = "https://fulfill.epicnexusgroup.com"
 embedded = true
 
 [build]
 automatically_update_urls_on_dev = true
-include_config_on_deploy = true
 
 [webhooks]
 api_version = "2024-10"
@@ -23,9 +22,9 @@ scopes = "read_customers,read_orders,read_products,write_assigned_fulfillment_or
 
 [auth]
 redirect_urls = [
-  "https://gravity-bucks-rhythm-bag.trycloudflare.com/auth/callback",
-  "https://gravity-bucks-rhythm-bag.trycloudflare.com/auth/shopify/callback",
-  "https://gravity-bucks-rhythm-bag.trycloudflare.com/api/auth/callback"
+  "https://fulfill.epicnexusgroup.com/auth/callback",
+  "https://fulfill.epicnexusgroup.com/auth/shopify/callback",
+  "https://fulfill.epicnexusgroup.com/api/auth/callback"
 ]
 
 [pos]
