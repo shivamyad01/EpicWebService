@@ -11,8 +11,6 @@ logs
 # vite build output
 dist/
 
-# Partners can use npm, yarn or pnpm with the CLI.
-# We ignore lock files so they don't get a package manager mis-match
-# Without this, they may get a warning if using a different package manager to us
+# Lock files: package-lock.json is committed for reproducible Docker builds.
+# yarn.lock is ignored since this project uses npm.
 yarn.lock
-package-lock.json
