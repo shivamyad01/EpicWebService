@@ -41,12 +41,15 @@ export const config = {
   
   // Common tracking URL templates by company
   trackingUrlTemplates: {
-    "India Post": "https://www.indiapost.gov.in/VAS/Pages/trackconsignment.aspx?tn=",
-    "BlueDart": "https://www.bluedart.com/tracking?ref=",
-    "Delhivery": "https://www.delhivery.com/track/package/",
-    "DTDC": "https://www.dtdc.in/tracking.asp?strCnno=",
-    "FedEx": "https://www.fedex.com/fedextrack/?tracknumbers=",
-    "DHL": "https://www.dhl.com/en/express/tracking.html?AWB="
+    "India Post":   "https://www.indiapost.gov.in/VAS/Pages/trackconsignment.aspx?tn=",
+    "BlueDart":     "https://www.bluedart.com/tracking?ref=",
+    "Delhivery":    "https://www.delhivery.com/track/package/",
+    "DTDC":         "https://www.dtdc.in/tracking.asp?strCnno=",
+    "Ecom Express": "https://ecomexpress.in/tracking/?awb_field=",
+    "FedEx":        "https://www.fedex.com/fedextrack/?tracknumbers=",
+    "DHL":          "https://www.dhl.com/en/express/tracking.html?AWB=",
+    "Xpressbees":   "https://www.xpressbees.com/track?awbno=",
+    "Shadowfax":    "https://tracker.shadowfax.in/?wbn="
   }
 };
 

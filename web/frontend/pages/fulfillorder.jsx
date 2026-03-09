@@ -60,39 +60,50 @@ export default function FulfillOrder() {
   };
 
   const handleDownloadSample = () => {
-    const sampleData = [
-      {
-        OrderNumber: "#1025",
-        TrackingNumber: "RX123456789IN",
-        TrackingCompany: "India Post",
-        TrackingUrl: ""
-      },
-      {
-        OrderNumber: "#1026",
-        TrackingNumber: "EX987654321IN",
-        TrackingCompany: "BlueDart",
-        TrackingUrl: "https://www.bluedart.com/tracking?ref=EX987654321IN"
-      },
-      {
-        OrderNumber: "1027",
-        TrackingNumber: "CP123456789IN",
-        TrackingCompany: "Delhivery",
-        TrackingUrl: ""
-      }
+    const carriers = [
+      "India Post",
+      "BlueDart",
+      "Delhivery",
+      "DTDC",
+      "Ecom Express",
+      "FedEx",
+      "DHL",
+      "Xpressbees",
+      "Shadowfax",
     ];
 
-    const worksheet = XLSX.utils.json_to_sheet(sampleData);
-    
-    // Set column widths for better readability
-    worksheet['!cols'] = [
-      { wch: 15 }, // OrderNumber
-      { wch: 20 }, // TrackingNumber
-      { wch: 15 }, // TrackingCompany
-      { wch: 50 }  // TrackingUrl
-    ];
-    
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+
+    // 3 columns only — TrackingUrl is resolved internally by the app
+    const ordersSheet = XLSX.utils.aoa_to_sheet([
+      ["OrderNumber", "TrackingNumber", "TrackingCompany"],
+      ["#1025", "RX123456789IN", "India Post"],
+      ["#1026", "EX987654321IN", "BlueDart"],
+      ["#1027", "CP123456789IN", "Delhivery"],
+    ]);
+
+    ordersSheet["!cols"] = [
+      { wch: 15 }, // OrderNumber
+      { wch: 22 }, // TrackingNumber
+      { wch: 18 }, // TrackingCompany
+    ];
+
+    // Dropdown for TrackingCompany — C2:C1000
+    ordersSheet["!dataValidations"] = [
+      {
+        type: "list",
+        sqref: "C2:C1000",
+        formula1: `"${carriers.join(",")}"`,
+        allowBlank: 1,
+        showDropDown: 0,
+        showErrorMessage: 1,
+        errorStyle: "warning",
+        errorTitle: "Invalid entry",
+        error: "Please select a carrier from the dropdown list.",
+      },
+    ];
+
+    XLSX.utils.book_append_sheet(workbook, ordersSheet, "Orders");
 
     const excelBuffer = XLSX.write(workbook, {
       bookType: "xlsx",

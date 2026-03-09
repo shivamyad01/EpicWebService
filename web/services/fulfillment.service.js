@@ -100,12 +100,12 @@ export const parseExcelFile = (filePath) => {
     throw new Error('Missing required column: TrackingNumber (or Tracking Number)');
   }
   
-  // Normalize column names
+  // Normalize column names — TrackingUrl is intentionally excluded;
+  // it is always resolved internally via buildTrackingUrl()
   return orders.map(row => ({
     OrderNumber: row.OrderNumber || row.Name || row['Order Number'] || row.order_number || '',
     TrackingNumber: row.TrackingNumber || row['Tracking Number'] || row.tracking_number || '',
     TrackingCompany: row.TrackingCompany || row['Tracking Company'] || row.tracking_company || config.defaultTrackingCompany,
-    TrackingUrl: row.TrackingUrl || row['Tracking URL'] || row.tracking_url || null
   }));
 };
 
@@ -222,13 +222,9 @@ export const createFulfillment = async (client, fulfillmentOrder, trackingInfo) 
 /**
  * Build tracking URL from tracking number and company
  */
-export const buildTrackingUrl = (trackingNumber, trackingCompany = null, customUrl = null) => {
-  if (customUrl && customUrl.trim()) return customUrl.trim();
-  
-  // Check if we have a template for this carrier
+export const buildTrackingUrl = (trackingNumber, trackingCompany = null) => {
   const company = trackingCompany || config.defaultTrackingCompany;
   const template = config.trackingUrlTemplates?.[company] || config.defaultTrackingUrlTemplate;
-  
   return `${template}${trackingNumber}`;
 };
 
@@ -243,7 +239,7 @@ export const processOrderFulfillment = async (order, session, client) => {
   const orderNumber = parseInt(orderNumberRaw.replace(/[^\d]/g, ""));
   const trackingNumber = (order.TrackingNumber || "").toString().trim();
   const trackingCompany = (order.TrackingCompany || config.defaultTrackingCompany).trim();
-  const trackingUrl = buildTrackingUrl(trackingNumber, trackingCompany, order.TrackingUrl);
+  const trackingUrl = buildTrackingUrl(trackingNumber, trackingCompany);
   
   // Validate required fields
   if (!orderNumber || !trackingNumber) {
