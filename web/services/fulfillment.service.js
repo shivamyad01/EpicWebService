@@ -121,23 +121,52 @@ export const cleanupTempFile = (filePath) => {
 };
 
 /**
- * Search for an order by name using GraphQL, then fetch full details via REST.
- * The REST orders.json endpoint does not reliably support name-based filtering,
- * so we use the GraphQL Admin API which supports flexible search queries.
+ * Search for an order using GraphQL, then fetch full details via REST.
+ * Tries multiple search strategies to reliably locate orders by name.
  */
 export const fetchOrder = async (shop, accessToken, orderName, client) => {
-  // GraphQL search: try the name as-is (Shopify search is flexible with the # prefix)
-  const searchResult = await withRetry(async () => {
-    return await client.query({
-      data: {
-        query: SEARCH_ORDER_BY_NAME,
-        variables: { query: `name:${orderName}` }
-      }
-    });
-  });
+  // Extract the numeric portion for fallback search
+  const numericPart = orderName.replace(/[^\d]/g, "");
 
-  const edges = searchResult.body?.data?.orders?.edges || [];
-  if (edges.length === 0) return [];
+  // Build search queries to try — order matters (most specific first)
+  const searchQueries = [
+    `name:#${orderName}`,       // e.g. name:#V-193855
+    `name:${orderName}`,        // e.g. name:V-193855
+    `#${orderName}`,            // general search: #V-193855
+    numericPart,                // general search: 193855
+  ];
+
+  let edges = [];
+
+  for (const q of searchQueries) {
+    try {
+      console.log(`[fetchOrder] Trying GraphQL search: "${q}"`);
+      const searchResult = await withRetry(async () => {
+        return await client.query({
+          data: {
+            query: SEARCH_ORDER_BY_NAME,
+            variables: { query: q }
+          }
+        });
+      });
+
+      const resultEdges = searchResult.body?.data?.orders?.edges || [];
+      console.log(`[fetchOrder] Query "${q}" returned ${resultEdges.length} result(s):`,
+        resultEdges.map(e => `${e.node.name} (ID: ${e.node.legacyResourceId})`));
+
+      if (resultEdges.length > 0) {
+        edges = resultEdges;
+        break; // Found results, stop trying
+      }
+    } catch (err) {
+      console.warn(`[fetchOrder] Search query "${q}" failed:`, err.message);
+    }
+  }
+
+  if (edges.length === 0) {
+    console.warn(`[fetchOrder] No orders found for "${orderName}" after all search strategies`);
+    return [];
+  }
 
   // Fetch the full order details via REST API using the discovered order IDs
   const orders = [];
@@ -154,10 +183,11 @@ export const fetchOrder = async (shop, accessToken, orderName, client) => {
         );
       });
       if (restResponse.data.order) {
+        console.log(`[fetchOrder] REST fetch OK for order ${orderId}, name: ${restResponse.data.order.name}, status: ${restResponse.data.order.fulfillment_status}`);
         orders.push(restResponse.data.order);
       }
     } catch (e) {
-      console.warn(`Failed to fetch order ${orderId}:`, e.message);
+      console.warn(`[fetchOrder] Failed to fetch order ${orderId}:`, e.message);
     }
   }
 
@@ -283,6 +313,13 @@ export const processOrderFulfillment = async (order, session, client) => {
     // Fetch order from Shopify by name (uses GraphQL search + REST details)
     const matchingOrders = await fetchOrder(shop, accessToken, orderNumberRaw, client);
     
+    console.log(`[processOrder] "${orderNumberRaw}" => found ${matchingOrders.length} order(s), looking for order_number=${orderNumber}`);
+    if (matchingOrders.length > 0) {
+      console.log(`[processOrder] Candidate orders:`, matchingOrders.map(o => 
+        `name=${o.name}, order_number=${o.order_number}, fulfillment_status=${o.fulfillment_status}`
+      ));
+    }
+
     if (matchingOrders.length === 0) {
       return {
         orderNumber: orderNumberRaw,
@@ -292,9 +329,17 @@ export const processOrderFulfillment = async (order, session, client) => {
       };
     }
     
-    const orderData = matchingOrders.find(
+    // Match by order_number (numeric) first, fallback to name match
+    let orderData = matchingOrders.find(
       (o) => parseInt(o.order_number) === orderNumber
     );
+    
+    // Fallback: match by name (with or without # prefix)
+    if (!orderData) {
+      orderData = matchingOrders.find(
+        (o) => o.name === orderNumberRaw || o.name === `#${orderNumberRaw}`
+      );
+    }
     
     if (!orderData) {
       return {
