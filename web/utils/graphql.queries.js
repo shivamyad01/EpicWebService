@@ -48,6 +48,20 @@ export const CREATE_FULFILLMENT = `
   }
 `;
 
+export const SEARCH_ORDER_BY_NAME = `
+  query SearchOrderByName($query: String!) {
+    orders(first: 5, query: $query) {
+      edges {
+        node {
+          id
+          name
+          legacyResourceId
+        }
+      }
+    }
+  }
+`;
+
 export const CREATE_PRODUCT = `
   mutation populateProduct($input: ProductInput!) {
     productCreate(input: $input) {
@@ -61,5 +75,6 @@ export const CREATE_PRODUCT = `
 export default {
   GET_FULFILLMENT_ORDERS,
   CREATE_FULFILLMENT,
+  SEARCH_ORDER_BY_NAME,
   CREATE_PRODUCT
 };

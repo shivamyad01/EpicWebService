@@ -7,7 +7,7 @@ import axios from "axios";
 import xlsx from "xlsx";
 import fs from "fs";
 import path from "path";
-import { GET_FULFILLMENT_ORDERS, CREATE_FULFILLMENT } from "../utils/graphql.queries.js";
+import { GET_FULFILLMENT_ORDERS, CREATE_FULFILLMENT, SEARCH_ORDER_BY_NAME } from "../utils/graphql.queries.js";
 import config from "../config/index.js";
 
 // In-memory store for fulfillment summaries (per shop)
@@ -121,26 +121,47 @@ export const cleanupTempFile = (filePath) => {
 };
 
 /**
- * Fetch order from Shopify REST API with retry logic
+ * Search for an order by name using GraphQL, then fetch full details via REST.
+ * The REST orders.json endpoint does not reliably support name-based filtering,
+ * so we use the GraphQL Admin API which supports flexible search queries.
  */
-export const fetchOrder = async (shop, accessToken, orderName) => {
-  // Shopify stores order names with '#' prefix (e.g. "#V-214090")
-  const nameWithHash = orderName.startsWith('#') ? orderName : `#${orderName}`;
-
-  return await withRetry(async () => {
-    const response = await axios.get(
-      `https://${shop}/admin/api/${config.shopify.apiVersion}/orders.json`,
-      { 
-        headers: { "X-Shopify-Access-Token": accessToken },
-        timeout: 30000, // 30 second timeout
-        params: {
-          status: 'any',
-          name: nameWithHash
-        }
+export const fetchOrder = async (shop, accessToken, orderName, client) => {
+  // GraphQL search: try the name as-is (Shopify search is flexible with the # prefix)
+  const searchResult = await withRetry(async () => {
+    return await client.query({
+      data: {
+        query: SEARCH_ORDER_BY_NAME,
+        variables: { query: `name:${orderName}` }
       }
-    );
-    return response.data.orders || [];
+    });
   });
+
+  const edges = searchResult.body?.data?.orders?.edges || [];
+  if (edges.length === 0) return [];
+
+  // Fetch the full order details via REST API using the discovered order IDs
+  const orders = [];
+  for (const edge of edges) {
+    const orderId = edge.node.legacyResourceId;
+    try {
+      const restResponse = await withRetry(async () => {
+        return await axios.get(
+          `https://${shop}/admin/api/${config.shopify.apiVersion}/orders/${orderId}.json`,
+          {
+            headers: { "X-Shopify-Access-Token": accessToken },
+            timeout: 30000
+          }
+        );
+      });
+      if (restResponse.data.order) {
+        orders.push(restResponse.data.order);
+      }
+    } catch (e) {
+      console.warn(`Failed to fetch order ${orderId}:`, e.message);
+    }
+  }
+
+  return orders;
 };
 
 /**
@@ -259,8 +280,8 @@ export const processOrderFulfillment = async (order, session, client) => {
   }
   
   try {
-    // Fetch order from Shopify by name
-    const matchingOrders = await fetchOrder(shop, accessToken, orderNumberRaw);
+    // Fetch order from Shopify by name (uses GraphQL search + REST details)
+    const matchingOrders = await fetchOrder(shop, accessToken, orderNumberRaw, client);
     
     if (matchingOrders.length === 0) {
       return {
