@@ -123,13 +123,20 @@ export const cleanupTempFile = (filePath) => {
 /**
  * Fetch order from Shopify REST API with retry logic
  */
-export const fetchOrder = async (shop, accessToken, orderNumber) => {
+export const fetchOrder = async (shop, accessToken, orderName) => {
+  // Shopify stores order names with '#' prefix (e.g. "#V-214090")
+  const nameWithHash = orderName.startsWith('#') ? orderName : `#${orderName}`;
+
   return await withRetry(async () => {
     const response = await axios.get(
-      `https://${shop}/admin/api/${config.shopify.apiVersion}/orders.json?status=any&order_number=${orderNumber}`,
+      `https://${shop}/admin/api/${config.shopify.apiVersion}/orders.json`,
       { 
         headers: { "X-Shopify-Access-Token": accessToken },
-        timeout: 30000 // 30 second timeout
+        timeout: 30000, // 30 second timeout
+        params: {
+          status: 'any',
+          name: nameWithHash
+        }
       }
     );
     return response.data.orders || [];
@@ -252,8 +259,8 @@ export const processOrderFulfillment = async (order, session, client) => {
   }
   
   try {
-    // Fetch order from Shopify
-    const matchingOrders = await fetchOrder(shop, accessToken, orderNumber);
+    // Fetch order from Shopify by name
+    const matchingOrders = await fetchOrder(shop, accessToken, orderNumberRaw);
     
     if (matchingOrders.length === 0) {
       return {
