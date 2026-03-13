@@ -70,6 +70,7 @@ export default function FulfillOrder() {
       "DHL",
       "Xpressbees",
       "Shadowfax",
+      "Trackon",
     ];
 
     const workbook = XLSX.utils.book_new();
@@ -78,8 +79,15 @@ export default function FulfillOrder() {
     const ordersSheet = XLSX.utils.aoa_to_sheet([
       ["OrderNumber", "TrackingNumber", "TrackingCompany"],
       ["#1025", "RX123456789IN", "India Post"],
-      ["#1026", "EX987654321IN", "BlueDart"],
-      ["#1027", "CP123456789IN", "Delhivery"],
+      ["#1026", "BD987654321IN", "BlueDart"],
+      ["#1027", "DL123456789IN", "Delhivery"],
+      ["#1028", "DT123456789IN", "DTDC"],
+      ["#1029", "EE123456789IN", "Ecom Express"],
+      ["#1030", "FX123456789IN", "FedEx"],
+      ["#1031", "DH123456789IN", "DHL"],
+      ["#1032", "XB123456789IN", "Xpressbees"],
+      ["#1033", "SF123456789IN", "Shadowfax"],
+      ["#1034", "TC123456789IN", "Trackon"],
     ]);
 
     ordersSheet["!cols"] = [

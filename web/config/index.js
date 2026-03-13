@@ -49,7 +49,8 @@ export const config = {
     "FedEx":        "https://www.fedex.com/fedextrack/?tracknumbers=",
     "DHL":          "https://www.dhl.com/en/express/tracking.html?AWB=",
     "Xpressbees":   "https://www.xpressbees.com/track?awbno=",
-    "Shadowfax":    "https://tracker.shadowfax.in/?wbn="
+    "Shadowfax":    "https://tracker.shadowfax.in/?wbn=",
+    "Trackon":      "https://www.trackon.in/courier-tracking?awb="
   }
 };
 
