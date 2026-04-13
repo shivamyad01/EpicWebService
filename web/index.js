@@ -95,9 +95,10 @@ app.use((err, req, res, next) => {
 // =============================================================================
 // SERVER STARTUP
 // =============================================================================
-const server = app.listen(config.port, () => {
+const server = app.listen(config.port, "0.0.0.0", () => {
   console.log(`🚀 Server is running on port ${config.port}`);
   console.log(`📦 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🌐 Listening on: 0.0.0.0:${config.port}`);
 });
 
 // Graceful shutdown
