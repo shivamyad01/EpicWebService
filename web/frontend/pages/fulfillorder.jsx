@@ -140,6 +140,7 @@ export default function FulfillOrder() {
     }
   };
 
+  
   const renderImportSummary = () => {
     if (!result) return null;
 
