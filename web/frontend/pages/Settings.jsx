@@ -24,16 +24,13 @@ import {
 import { TitleBar } from '@shopify/app-bridge-react';
 import { useTranslation } from 'react-i18next';
 import { SettingsMajor, ProductsMajor, OrdersMajor, AnalyticsMajor, NotificationMajor } from '@shopify/polaris-icons';
+import { safeFetchJson } from '../utils/api.js';
 
 // API service
 const SettingsAPI = {
   getSettings: async () => {
     try {
-      const response = await fetch('/api/settings');
-      if (!response.ok) {
-        throw new Error('Failed to fetch settings');
-      }
-      return await response.json();
+      return await safeFetchJson('/api/settings');
     } catch (error) {
       console.error('Error fetching settings:', error);
       // Return default settings if API call fails
@@ -101,19 +98,13 @@ const SettingsAPI = {
   },
   saveSettings: async (settings) => {
     try {
-      const response = await fetch('/api/settings', {
+      return await safeFetchJson('/api/settings', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(settings),
       });
-      
-      if (!response.ok) {
-        throw new Error('Failed to save settings');
-      }
-      
-      return await response.json();
     } catch (error) {
       console.error('Error saving settings:', error);
       throw error;

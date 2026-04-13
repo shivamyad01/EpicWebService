@@ -3,6 +3,7 @@ import { Card, TextContainer, Text } from "@shopify/polaris";
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "react-query";
+import { safeFetchJson } from "../utils/api.js";
 
 export function ProductsCard() {
   const shopify = useAppBridge();
@@ -16,10 +17,7 @@ export function ProductsCard() {
     isLoading: isLoadingCount,
   } = useQuery({
     queryKey: ["productCount"],
-    queryFn: async () => {
-      const response = await fetch("/api/products/count");
-      return await response.json();
-    },
+    queryFn: () => safeFetchJson("/api/products/count"),
     refetchOnWindowFocus: false,
   });
 
@@ -30,15 +28,16 @@ export function ProductsCard() {
 
   const handlePopulate = async () => {
     setPopulating(true);
-    const response = await fetch("/api/products", { method: "POST" });
+    try {
+      const response = await safeFetchJson("/api/products", { method: "POST" });
 
-    if (response.ok) {
       await refetchProductCount();
 
       shopify.toast.show(
         t("ProductsCard.productsCreatedToast", { count: productsCount })
       );
-    } else {
+    } catch (error) {
+      console.error('Error creating products:', error);
       shopify.toast.show(t("ProductsCard.errorCreatingProductsToast"), {
         isError: true,
       });

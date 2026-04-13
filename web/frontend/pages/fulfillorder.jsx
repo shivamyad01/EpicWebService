@@ -15,6 +15,7 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import * as XLSX from "xlsx";
+import { safeFetchJson, safeFetchBlob } from "../utils/api.js";
 
 export default function FulfillOrder() {
   const [file, setFile] = useState(null);
@@ -39,16 +40,10 @@ export default function FulfillOrder() {
     formData.append("file", file);
 
     try {
-      const res = await fetch("/api/orders/bulk-fulfill", {
+      const data = await safeFetchJson("/api/orders/bulk-fulfill", {
         method: "POST",
         body: formData,
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Bulk fulfillment failed");
-      }
 
       setResult(data.summary);
       setFile(null);
@@ -130,11 +125,7 @@ export default function FulfillOrder() {
 
   const handleDownloadReport = async () => {
     try {
-      const res = await fetch("/api/orders/fulfillment-report/download");
-
-      if (!res.ok) {
-        throw new Error("Failed to download report");
-      }
+      const res = await safeFetchBlob("/api/orders/fulfillment-report/download");
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);

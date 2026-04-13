@@ -5,8 +5,9 @@
 
 import orderRoutes from "./order.routes.js";
 import settingsRoutes from "./settings.routes.js";
+import productRoutes from "./product.routes.js";
 
-export { orderRoutes, settingsRoutes };
+export { orderRoutes, settingsRoutes, productRoutes };
 
 /**
  * Register all routes with the Express app
@@ -23,10 +24,12 @@ export const registerRoutes = (app, shopify) => {
   // API routes (authenticated)
   app.use("/api/orders", orderRoutes);
   app.use("/api/settings", settingsRoutes);
+  app.use("/api/products", productRoutes);
 };
 
 export default {
   orderRoutes,
   settingsRoutes,
+  productRoutes,
   registerRoutes
 };

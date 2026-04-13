@@ -12,7 +12,7 @@ import serveStatic from "serve-static";
 import shopify from "./shopify.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 import config from "./config/index.js";
-import { orderRoutes, settingsRoutes } from "./routes/index.js";
+import { orderRoutes, settingsRoutes, productRoutes } from "./routes/index.js";
 
 const app = express();
 
@@ -45,6 +45,7 @@ app.use(express.json());
 // =============================================================================
 app.use("/api/orders", orderRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/products", productRoutes);
 
 // =============================================================================
 // STATIC FILES & CSP
