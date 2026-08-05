@@ -94,9 +94,12 @@ export const saveSettings = async (shop, settings) => {
   const mergedSettings = deepMerge(existingSettings, settings);
   
   settingsStore.set(shop, mergedSettings);
-  
-  console.log(`Settings saved for ${shop}:`, JSON.stringify(mergedSettings, null, 2));
-  
+
+  // Log only which sections changed. The settings object carries an API key, a
+  // Google Analytics tracking id and a contact email address, and dumping it put
+  // all three into the container logs in plain text.
+  console.log(`Settings saved for ${shop}: ${Object.keys(settings).join(", ") || "none"}`);
+
   return mergedSettings;
 };
 

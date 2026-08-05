@@ -23,6 +23,30 @@ const BATCH_DELAY = 500; // ms delay between batches
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
+ * Group sheet rows by the order they target.
+ *
+ * A merchant can legitimately list one order twice — two parcels, two AWBs — but
+ * running those rows concurrently races them against each other: both read the same
+ * open fulfillment order and both try to fulfil it. Rows for one order therefore run
+ * in sequence, while different orders still run in parallel.
+ */
+const groupRowsByOrder = (rows) => {
+  const groups = new Map();
+
+  for (const row of rows) {
+    const key = String(row.OrderNumber || "").trim().replace(/^#/, "").toLowerCase();
+    const existing = groups.get(key);
+    if (existing) {
+      existing.push(row);
+    } else {
+      groups.set(key, [row]);
+    }
+  }
+
+  return [...groups.values()];
+};
+
+/**
  * Bulk fulfill orders from uploaded Excel file
  */
 export const bulkFulfillOrders = async (req, res) => {
@@ -61,24 +85,71 @@ export const bulkFulfillOrders = async (req, res) => {
       });
     }
     
+    // Notifying customers is opt-in per upload. It used to be forced on, so a
+    // single bad sheet emailed every customer in it with no way to prevent that.
+    const notifyCustomer = req.body?.notifyCustomer === "true";
+
+    // A long run can outlive the request: nginx gives up at 300s and the browser
+    // sees a 504, but Node keeps the handler alive. Without this the app carried on
+    // fulfilling orders and emailing customers for an upload the merchant already
+    // saw fail, and they would re-upload on top of it.
+    let clientGone = false;
+    res.on("close", () => {
+      if (!res.writableEnded) {
+        clientGone = true;
+        console.warn(`[bulkFulfill] client disconnected for ${shop}, stopping after the current batch`);
+      }
+    });
+
     const results = [];
     const totalOrders = orders.length;
-    
-    // Process orders in batches
-    for (let i = 0; i < totalOrders; i += BATCH_SIZE) {
-      const batch = orders.slice(i, i + BATCH_SIZE);
-      
-      // Process batch concurrently but with controlled parallelism
+    const groups = groupRowsByOrder(orders);
+    let stoppedEarly = false;
+
+    // Batch over groups, not rows, so no two rows for the same order run at once
+    for (let i = 0; i < groups.length; i += BATCH_SIZE) {
+      if (clientGone) {
+        stoppedEarly = true;
+        break;
+      }
+
+      const batch = groups.slice(i, i + BATCH_SIZE);
+
+      // Groups run concurrently; rows inside a group run one after another
       const batchResults = await Promise.all(
-        batch.map(order => processOrderFulfillment(order, session, client))
+        batch.map(async (group) => {
+          const groupResults = [];
+          for (const order of group) {
+            groupResults.push(
+              await processOrderFulfillment(order, session, client, notifyCustomer)
+            );
+          }
+          return groupResults;
+        })
       );
-      
-      results.push(...batchResults);
-      
+
+      results.push(...batchResults.flat());
+
       // Delay between batches to avoid rate limits
-      if (i + BATCH_SIZE < totalOrders) {
+      if (i + BATCH_SIZE < groups.length) {
         await sleep(BATCH_DELAY);
       }
+    }
+
+    // Rows never reached must show up in the report, or a merchant reading it would
+    // believe those orders were considered and found fine
+    if (stoppedEarly) {
+      const processed = results.length;
+      for (const order of orders.slice(processed)) {
+        results.push({
+          orderNumber: String(order.OrderNumber || ""),
+          trackingNumber: String(order.TrackingNumber || ""),
+          trackingCompany: order.TrackingCompany || "",
+          trackingUrl: "",
+          error: "Not processed - the upload was interrupted. Re-upload these rows."
+        });
+      }
+      console.warn(`[bulkFulfill] ${shop}: stopped after ${processed}/${totalOrders} rows`);
     }
 
     // Store results for later retrieval
@@ -91,7 +162,13 @@ export const bulkFulfillOrders = async (req, res) => {
     const successCount = results.filter(r => !r.error).length;
     const failedCount = results.filter(r => r.error).length;
 
-    return res.status(200).json({ 
+    // Nothing to write to if the browser already gave up; the report is saved, so
+    // the merchant can still download it
+    if (clientGone) {
+      return;
+    }
+
+    return res.status(200).json({
       summary: results,
       stats: {
         total: totalOrders,
@@ -101,15 +178,19 @@ export const bulkFulfillOrders = async (req, res) => {
     });
   } catch (err) {
     console.error("Bulk fulfillment error:", err);
-    
+
     // Clean up temp file on error
     if (req.file?.path) {
       cleanupTempFile(req.file.path);
     }
-    
-    return res.status(500).json({ 
+
+    if (res.headersSent || !res.writable) {
+      return;
+    }
+
+    return res.status(500).json({
       error: "Internal error during fulfillment",
-      message: err.message 
+      message: err.message
     });
   }
 };

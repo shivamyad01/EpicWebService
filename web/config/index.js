@@ -25,6 +25,12 @@ export const config = {
   shopify: {
     apiVersion: "2024-10"
   },
+
+  // Fulfillment reports live on the mounted volume (docker-compose mounts app_data
+  // at /app/data), so a restart or redeploy does not lose the last run's report.
+  reportDir:
+    process.env.REPORT_DIR ||
+    (process.env.NODE_ENV === "production" ? "/app/data/reports" : `${process.cwd()}/reports`),
   
   // Fulfillment settings
   fulfillment: {
@@ -37,20 +43,90 @@ export const config = {
   },
   
   defaultTrackingCompany: "India Post",
-  defaultTrackingUrlTemplate: "https://www.indiapost.gov.in/VAS/Pages/trackconsignment.aspx?tn=",
-  
-  // Common tracking URL templates by company
-  trackingUrlTemplates: {
-    "India Post":   "https://www.indiapost.gov.in/VAS/Pages/trackconsignment.aspx?tn=",
-    "BlueDart":     "https://www.bluedart.com/tracking?ref=",
-    "Delhivery":    "https://www.delhivery.com/track/package/",
-    "DTDC":         "https://www.dtdc.in/tracking.asp?strCnno=",
-    "Ecom Express": "https://ecomexpress.in/tracking/?awb_field=",
-    "FedEx":        "https://www.fedex.com/fedextrack/?tracknumbers=",
-    "DHL":          "https://www.dhl.com/en/express/tracking.html?AWB=",
-    "Xpressbees":   "https://www.xpressbees.com/track?awbno=",
-    "Shadowfax":    "https://tracker.shadowfax.in/?wbn=",
-    "Trackon":      "https://www.trackon.in/courier-tracking?awb="
+
+  // Carrier names Shopify recognizes, spelled exactly as Shopify expects
+  // (capitalization matters). Sending one of these is what makes Shopify select
+  // the carrier, build the tracking URL itself, and keep shipment_status
+  // updated — the same result as picking a carrier from the "Shipping carrier"
+  // dropdown in the admin. That is why there are no URL templates here:
+  // maintaining tracking link formats is Shopify's job, not ours.
+  //
+  // Source: Admin API Fulfillment reference, "Supported tracking companies".
+  // This is the India list plus the global entries worth offering here; the
+  // full supported list is country-specific.
+  shopifyTrackingCompanies: [
+    // India
+    "Bluedart",
+    "Delhivery",
+    "DTDC",
+    "Ecom Express",
+    "Ekart",
+    "Gati KWE",
+    "India Post",
+    "Professional Couriers",
+    "Shadowfax",
+    "XpressBees",
+    // Available to shops in any country
+    "Amazon Logistics UK",
+    "Amazon Logistics US",
+    "DHL eCommerce",
+    "DHL Express",
+    "FedEx",
+    "Sendle",
+    "SHREE NANDAN COURIER",
+    "TNT",
+    "UPS",
+    "USPS"
+  ],
+
+  // Carriers whose Shopify-generated link is not a deep link, so we send our own.
+  // Verified against a live shop by fulfilling with `company` and no `url`:
+  //   India Post -> https://www.indiapost.gov.in/      (homepage, no tracking page)
+  //   Bluedart   -> https://www.bluedart.com/tracking  (bare form, no number)
+  //   Trackon    -> https://www.indiapost.gov.in/      (wrong carrier — guessed
+  //                 from the tracking number's format, Trackon is unknown to Shopify)
+  // Delhivery, by contrast, returns a proper deep link and needs no entry here.
+  //
+  // Sending our own url costs nothing: shipment_status updates depend on the
+  // `company` field alone, which we still send with Shopify's exact spelling.
+  //
+  // The tracking number is appended to the value. Delete an entry to fall back to
+  // whatever link Shopify generates. An entry may also name a carrier Shopify does
+  // not know (like Trackon) — that makes it usable without a TrackingUrl column.
+  //
+  // NOTE: these URL formats carried over from the old template list and are NOT
+  // verified against the carriers' current sites. Check each one in a browser with
+  // a real AWB; if a format is dead, fix it here or delete the entry.
+  trackingUrlOverrides: {
+    "India Post": "https://www.indiapost.gov.in/VAS/Pages/trackconsignment.aspx?tn=",
+    "Bluedart": "https://www.bluedart.com/tracking?ref=",
+    "Trackon": "https://www.trackon.in/courier-tracking?awb="
+  },
+
+  // Spellings merchants habitually type, mapped to the exact name to send.
+  // Keys must be lowercase. Matching is already case-insensitive, so only real
+  // spelling differences belong here — "BlueDart" needs no entry, "Blue Dart" does.
+  //
+  // A target need not be a carrier Shopify recognizes: "Other" is the label
+  // Shopify's own dropdown uses, so we normalize the casing to match what a
+  // merchant would see there. It still requires a TrackingUrl, since Shopify
+  // cannot derive a link from it.
+  trackingCompanyAliases: {
+    other: "Other",
+    "blue dart": "Bluedart",
+    "bluedart express": "Bluedart",
+    "dhl": "DHL Express",
+    "dtdc courier": "DTDC",
+    "ecom": "Ecom Express",
+    "ecomexpress": "Ecom Express",
+    "ekart logistics": "Ekart",
+    "flipkart": "Ekart",
+    "gati": "Gati KWE",
+    "speed post": "India Post",
+    "speedpost": "India Post",
+    "the professional couriers": "Professional Couriers",
+    "tpc": "Professional Couriers",
+    "xpress bees": "XpressBees"
   }
 };
 

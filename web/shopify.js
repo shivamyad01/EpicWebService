@@ -3,7 +3,15 @@ import { shopifyApp } from "@shopify/shopify-app-express";
 import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
 import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 
-const DB_PATH = `${process.cwd()}/database.sqlite`;
+// Sessions must live on the mounted volume. docker-compose mounts app_data at
+// /app/data, so writing to the working directory instead put the database on the
+// container's own filesystem: every image update wiped it and forced all merchants
+// to reinstall the app. SESSION_DB_PATH overrides it for local development.
+const DB_PATH =
+  process.env.SESSION_DB_PATH ||
+  (process.env.NODE_ENV === "production"
+    ? "/app/data/database.sqlite"
+    : `${process.cwd()}/database.sqlite`);
 
 // The transactions with Shopify will always be marked as test transactions, unless NODE_ENV is production.
 // See the ensureBilling helper to learn more about billing in this template.

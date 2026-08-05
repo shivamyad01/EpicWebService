@@ -12,6 +12,7 @@ import {
   Box,
   Spinner,
   Badge,
+  Checkbox,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import * as XLSX from "xlsx";
@@ -23,6 +24,9 @@ export default function FulfillOrder() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
+  // Off by default. Shipping emails cannot be unsent, so sending them is a choice
+  // the merchant makes per upload rather than something the app does silently.
+  const [notifyCustomer, setNotifyCustomer] = useState(false);
   const itemsPerPage = 5;
 
   const handleDropZoneDrop = (_dropFiles, acceptedFiles) => {
@@ -38,6 +42,7 @@ export default function FulfillOrder() {
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("notifyCustomer", String(notifyCustomer));
 
     try {
       const data = await safeFetchJson("/api/orders/bulk-fulfill", {
@@ -55,58 +60,158 @@ export default function FulfillOrder() {
   };
 
   const handleDownloadSample = () => {
+    // Carriers that work with TrackingUrl left blank, spelled exactly as the
+    // server expects. Keep in sync with the union of shopifyTrackingCompanies
+    // and trackingUrlOverrides in the server config.
     const carriers = [
-      "India Post",
-      "BlueDart",
+      "Amazon Logistics UK",
+      "Amazon Logistics US",
+      "Bluedart",
       "Delhivery",
+      "DHL eCommerce",
+      "DHL Express",
       "DTDC",
       "Ecom Express",
+      "Ekart",
       "FedEx",
-      "DHL",
-      "Xpressbees",
+      "Gati KWE",
+      "India Post",
+      "Professional Couriers",
+      "Sendle",
       "Shadowfax",
+      "SHREE NANDAN COURIER",
+      "TNT",
       "Trackon",
+      "UPS",
+      "USPS",
+      "XpressBees",
     ];
 
     const workbook = XLSX.utils.book_new();
 
-    // 3 columns only — TrackingUrl is resolved internally by the app
     const ordersSheet = XLSX.utils.aoa_to_sheet([
-      ["OrderNumber", "TrackingNumber", "TrackingCompany"],
-      ["#1025", "RX123456789IN", "India Post"],
-      ["#1026", "BD987654321IN", "BlueDart"],
-      ["#1027", "DL123456789IN", "Delhivery"],
-      ["#1028", "DT123456789IN", "DTDC"],
-      ["#1029", "EE123456789IN", "Ecom Express"],
-      ["#1030", "FX123456789IN", "FedEx"],
-      ["#1031", "DH123456789IN", "DHL"],
-      ["#1032", "XB123456789IN", "Xpressbees"],
-      ["#1033", "SF123456789IN", "Shadowfax"],
-      ["#1034", "TC123456789IN", "Trackon"],
+      ["OrderNumber", "TrackingNumber", "TrackingCompany", "TrackingUrl"],
+      ["#1025", "RX123456789IN", "India Post", ""],
+      ["#1026", "BD987654321IN", "Bluedart", ""],
+      ["#1027", "DL123456789IN", "Delhivery", ""],
+      ["#1028", "DT123456789IN", "DTDC", ""],
+      ["#1029", "EE123456789IN", "Ecom Express", ""],
+      ["#1030", "EK123456789IN", "Ekart", ""],
+      ["#1031", "XB123456789IN", "XpressBees", ""],
+      ["#1032", "SF123456789IN", "Shadowfax", ""],
+      ["#1033", "FX123456789IN", "FedEx", ""],
+      ["#1034", "DH123456789IN", "DHL Express", ""],
+      ["#1035", "TC123456789IN", "Trackon", ""],
+      // Only a carrier not on the Carriers sheet needs its own link. Naming the
+      // carrier is better than "Other" — this name is what the customer sees.
+      [
+        "#1036",
+        "SR987654321IN",
+        "Shiprocket",
+        "https://shiprocket.co/tracking/SR987654321IN",
+      ],
+      [
+        "#1037",
+        "GK123456789IN",
+        "Other",
+        "https://mycourier.com/track?awb=GK123456789IN",
+      ],
     ]);
 
     ordersSheet["!cols"] = [
       { wch: 15 }, // OrderNumber
       { wch: 22 }, // TrackingNumber
       { wch: 18 }, // TrackingCompany
-    ];
-
-    // Dropdown for TrackingCompany — C2:C1000
-    ordersSheet["!dataValidations"] = [
-      {
-        type: "list",
-        sqref: "C2:C1000",
-        formula1: `"${carriers.join(",")}"`,
-        allowBlank: 1,
-        showDropDown: 0,
-        showErrorMessage: 1,
-        errorStyle: "warning",
-        errorTitle: "Invalid entry",
-        error: "Please select a carrier from the dropdown list.",
-      },
+      { wch: 45 }, // TrackingUrl
     ];
 
     XLSX.utils.book_append_sheet(workbook, ordersSheet, "Orders");
+
+    // The community build of SheetJS cannot write data validations, so an
+    // in-cell dropdown is not possible here. A reference sheet of valid
+    // carrier names is the working substitute.
+    const carriersSheet = XLSX.utils.aoa_to_sheet([
+      ["Carriers that need no TrackingUrl"],
+      [
+        "Copy a name into TrackingCompany exactly as written here and leave TrackingUrl blank. The app works out the tracking link for you.",
+      ],
+      [
+        "For most of these, Shopify itself selects the carrier and reports delivery status — the same as picking it from the dropdown on an order.",
+      ],
+      [""],
+      ...carriers.map((name) => [name]),
+      [""],
+      ["Any other carrier"],
+      [
+        "Type its real name in TrackingCompany and put the full tracking link in TrackingUrl.",
+      ],
+      [
+        "These rows are fulfilled with your link, but Shopify cannot report delivery status for them.",
+      ],
+    ]);
+
+    carriersSheet["!cols"] = [{ wch: 70 }];
+
+    XLSX.utils.book_append_sheet(workbook, carriersSheet, "Carriers");
+
+    const instructionsSheet = XLSX.utils.aoa_to_sheet([
+      ["How to fill the Orders sheet"],
+      [""],
+      ["Column", "Required?", "Notes"],
+      [
+        "OrderNumber",
+        "Yes",
+        "Order name as shown in Shopify, e.g. #1025 or V-304797",
+      ],
+      ["TrackingNumber", "Yes", "AWB / consignment number"],
+      [
+        "TrackingCompany",
+        "No",
+        "Use a name from the Carriers sheet. Leave blank to use India Post.",
+      ],
+      [
+        "TrackingUrl",
+        "Sometimes",
+        "Required when the carrier is not on the Carriers sheet.",
+      ],
+      [""],
+      ["Using a carrier that is not on the Carriers sheet"],
+      [
+        "1.",
+        "Type the carrier's real name in TrackingCompany — this name is shown to the customer in the shipping email.",
+      ],
+      ["2.", "Put the full tracking link in TrackingUrl, including https://"],
+      [
+        "3.",
+        "The link must already contain the tracking number, e.g. https://www.trackon.in/courier-tracking?awb=TC123456789IN",
+      ],
+      [""],
+      ["Good to know"],
+      [
+        "•",
+        "Leave TrackingUrl blank for any carrier on the Carriers sheet. The app supplies the link, and Shopify keeps delivery status updated where it can.",
+      ],
+      [
+        "•",
+        "If you do fill TrackingUrl, your link is always used instead.",
+      ],
+      [
+        "•",
+        "Carriers outside Shopify's list cannot report delivery status. Their tracking link still works.",
+      ],
+      [
+        "•",
+        "A row with an unrecognized carrier and no TrackingUrl is skipped and reported as an error — it is never fulfilled with a guessed link.",
+      ],
+      [
+        "•",
+        "Carrier names are matched ignoring capitalization, so 'delhivery' and 'Delhivery' both work. Common spellings like 'Blue Dart' and 'Gati' are understood too.",
+      ],
+    ]);
+
+    instructionsSheet["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 80 }];
+
+    XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions");
 
     const excelBuffer = XLSX.write(workbook, {
       bookType: "xlsx",
@@ -417,22 +522,46 @@ export default function FulfillOrder() {
                       </td>
                       <td style={{ padding: "12px" }}>{r.orderNumber}</td>
                       <td style={{ padding: "12px" }}>
-                        {r.trackingNumber || "-"}
+                        {r.trackingUrl ? (
+                          <a
+                            href={r.trackingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            {r.trackingNumber || "-"}
+                          </a>
+                        ) : (
+                          r.trackingNumber || "-"
+                        )}
                       </td>
                       <td style={{ padding: "12px" }}>
                         {r.trackingCompany || "-"}
                       </td>
                       <td style={{ padding: "12px" }}>
-                        <Badge status={r.error ? "critical" : "success"}>
-                          {r.error ? "Failed" : "Success"}
+                        <Badge
+                          status={
+                            r.error
+                              ? "critical"
+                              : r.warning
+                              ? "attention"
+                              : "success"
+                          }
+                        >
+                          {r.error ? "Failed" : r.warning ? "Warning" : "Success"}
                         </Badge>
                       </td>
                       <td style={{ padding: "12px" }}>
                         <Text
-                          tone={r.error ? "critical" : "success"}
+                          tone={
+                            r.error
+                              ? "critical"
+                              : r.warning
+                              ? "caution"
+                              : "success"
+                          }
                           variant="bodySm"
                         >
-                          {r.error || "Fulfilled successfully"}
+                          {r.error || r.warning || "Fulfilled successfully"}
                         </Text>
                       </td>
                     </tr>
@@ -570,6 +699,16 @@ export default function FulfillOrder() {
                 <p>{error}</p>
               </Banner>
             )}
+
+            <Box paddingBlockStart="4">
+              <Checkbox
+                label="Send shipping notification to customers"
+                helpText="Off by default. Notification emails cannot be undone, so check this only when the tracking numbers in your sheet are final."
+                checked={notifyCustomer}
+                onChange={setNotifyCustomer}
+                disabled={uploading}
+              />
+            </Box>
 
             <Box paddingBlockStart="4">
               <Stack alignment="center" distribution="start" spacing="tight">

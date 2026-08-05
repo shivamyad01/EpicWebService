@@ -9,8 +9,10 @@
  * - MySQL with Sequelize/Prisma
  */
 
-// Database path for SQLite (used by Shopify session storage)
-export const DB_PATH = `${process.cwd()}/database.sqlite`;
+// The session database path is owned by shopify.js and must stay on the mounted
+// volume. It is deliberately not duplicated here: this module used to export a
+// second copy pointing at the working directory, which is the path that lost every
+// merchant's session on each redeploy.
 
 /**
  * Initialize database connection
@@ -37,7 +39,6 @@ export const closeDatabase = async () => {
 };
 
 export default {
-  DB_PATH,
   initDatabase,
   closeDatabase
 };
