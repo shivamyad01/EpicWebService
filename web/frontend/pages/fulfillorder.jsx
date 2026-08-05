@@ -111,8 +111,8 @@ export default function FulfillOrder() {
         "https://shiprocket.co/tracking/SR987654321IN",
       ],
       // Same base link on every row — the app appends each row's own number
-      ["#1037", "JCW10000160894", "Other", "https://jcwexpress.com/tracking?codes="],
-      ["#1038", "JCW10000160895", "Other", "https://jcwexpress.com/tracking?codes="],
+      ["#1037", "JCW90000000001", "Other", "https://jcwexpress.com/tracking?codes="],
+      ["#1038", "JCW90000000002", "Other", "https://jcwexpress.com/tracking?codes="],
       // Or mark the spot when the number is not at the end of the link
       ["#1039", "GK123456789IN", "Other", "https://mycourier.com/track/{tracking}/details"],
     ]);
@@ -189,7 +189,7 @@ export default function FulfillOrder() {
       ],
       [
         "",
-        "Example: https://jcwexpress.com/tracking?codes=   +   JCW10000160894   =   https://jcwexpress.com/tracking?codes=JCW10000160894",
+        "Example: https://jcwexpress.com/tracking?codes=   +   JCW90000000001   =   https://jcwexpress.com/tracking?codes=JCW90000000001",
       ],
       [
         "3.",
