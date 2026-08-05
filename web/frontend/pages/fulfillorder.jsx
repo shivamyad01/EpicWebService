@@ -183,7 +183,11 @@ export default function FulfillOrder() {
       ["2.", "Put the full tracking link in TrackingUrl, including https://"],
       [
         "3.",
-        "The link must already contain the tracking number, e.g. https://www.trackon.in/courier-tracking?awb=TC123456789IN",
+        "The link must already contain the tracking number — the app does not add it. Example: https://shiprocket.co/tracking/SR987654321IN",
+      ],
+      [
+        "4.",
+        'In Excel you can build the links in one go: put ="https://shiprocket.co/tracking/"&B2 in TrackingUrl and drag it down.',
       ],
       [""],
       ["Good to know"],
