@@ -493,10 +493,46 @@ export const normalizeTrackingUrl = (rawUrl) => {
 };
 
 /**
+ * Put a tracking number into a URL that the merchant supplied as a template.
+ *
+ * Merchants naturally paste a base link once and copy it down the column —
+ * "https://jcwexpress.com/tracking?codes=" — expecting each row's number to land
+ * on the end. Taken verbatim that is a link to an empty tracking form: nothing
+ * about it is invalid, so it cannot be reported as an error, and the customer
+ * simply gets a dead link. Two shapes are filled in:
+ *
+ *   - an explicit {tracking} placeholder anywhere in the URL, for carriers whose
+ *     number sits in the middle of the path
+ *   - a URL ending on a separator, where the number is appended
+ *
+ * A URL that already carries its number ends on neither, and is left untouched.
+ */
+export const applyTrackingNumberToUrl = (rawUrl, trackingNumber) => {
+  const value = String(rawUrl || "").trim();
+  const number = String(trackingNumber || "").trim();
+  if (!value || !number) return value;
+
+  const encoded = encodeURIComponent(number);
+  const placeholder = /\{\s*(tracking|tracking_number|trackingnumber|awb)\s*\}/gi;
+
+  if (placeholder.test(value)) {
+    return value.replace(placeholder, encoded);
+  }
+
+  // "?codes=", "&awb=", "/track/" — a link that stops on a separator is a template
+  if (/[=/?&:]$/.test(value)) {
+    return `${value}${encoded}`;
+  }
+
+  return value;
+};
+
+/**
  * Decide what tracking information to send to Shopify for a sheet row.
  *
  * Precedence, highest first:
- *   1. a URL from the sheet — the merchant's explicit choice
+ *   1. a URL from the sheet — the merchant's explicit choice. A base link or a
+ *      {tracking} placeholder has this row's number filled in first
  *   2. a configured override — for carriers whose Shopify link is not a deep link
  *   3. no URL at all — Shopify builds and maintains the link from the carrier name,
  *      which is what picking a carrier from the admin dropdown does
@@ -506,7 +542,7 @@ export const normalizeTrackingUrl = (rawUrl) => {
 export const resolveTracking = (trackingNumber, trackingCompany, sheetUrl) => {
   const { name, isKnown } = resolveCarrierName(trackingCompany);
 
-  const custom = normalizeTrackingUrl(sheetUrl);
+  const custom = normalizeTrackingUrl(applyTrackingNumberToUrl(sheetUrl, trackingNumber));
   if (custom.error) {
     return { company: name, url: null, isKnown, error: custom.error };
   }
@@ -902,6 +938,7 @@ export default {
   isDeadFulfillment,
   resolveCarrierName,
   normalizeTrackingUrl,
+  applyTrackingNumberToUrl,
   resolveTracking,
   carriersNeedingNoUrl
 };

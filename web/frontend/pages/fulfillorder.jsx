@@ -110,12 +110,11 @@ export default function FulfillOrder() {
         "Shiprocket",
         "https://shiprocket.co/tracking/SR987654321IN",
       ],
-      [
-        "#1037",
-        "GK123456789IN",
-        "Other",
-        "https://mycourier.com/track?awb=GK123456789IN",
-      ],
+      // Same base link on every row — the app appends each row's own number
+      ["#1037", "JCW10000160894", "Other", "https://jcwexpress.com/tracking?codes="],
+      ["#1038", "JCW10000160895", "Other", "https://jcwexpress.com/tracking?codes="],
+      // Or mark the spot when the number is not at the end of the link
+      ["#1039", "GK123456789IN", "Other", "https://mycourier.com/track/{tracking}/details"],
     ]);
 
     ordersSheet["!cols"] = [
@@ -143,7 +142,7 @@ export default function FulfillOrder() {
       [""],
       ["Any other carrier"],
       [
-        "Type its real name in TrackingCompany and put the full tracking link in TrackingUrl.",
+        "Type its real name in TrackingCompany, and put the carrier's base tracking link in TrackingUrl — the app appends each row's tracking number.",
       ],
       [
         "These rows are fulfilled with your link, but Shopify cannot report delivery status for them.",
@@ -180,14 +179,29 @@ export default function FulfillOrder() {
         "1.",
         "Type the carrier's real name in TrackingCompany — this name is shown to the customer in the shipping email.",
       ],
-      ["2.", "Put the full tracking link in TrackingUrl, including https://"],
+      [
+        "2.",
+        "Easiest way: put the carrier's base link — the part before the tracking number — in TrackingUrl and copy the same value down the whole column.",
+      ],
+      [
+        "",
+        "The app appends each row's own tracking number, so one link covers every row.",
+      ],
+      [
+        "",
+        "Example: https://jcwexpress.com/tracking?codes=   +   JCW10000160894   =   https://jcwexpress.com/tracking?codes=JCW10000160894",
+      ],
       [
         "3.",
-        "The link must already contain the tracking number — the app does not add it. Example: https://shiprocket.co/tracking/SR987654321IN",
+        "The base link has to end where the number goes, on = or /. Include https:// (the app adds it if you forget).",
       ],
       [
         "4.",
-        'In Excel you can build the links in one go: put ="https://shiprocket.co/tracking/"&B2 in TrackingUrl and drag it down.',
+        "If the number sits in the middle of the link, mark the spot with {tracking}. Example: https://mycourier.com/track/{tracking}/details",
+      ],
+      [
+        "5.",
+        "A link that already contains the number is used exactly as written, so pasting full links per row also works.",
       ],
       [""],
       ["Good to know"],
