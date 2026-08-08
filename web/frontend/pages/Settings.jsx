@@ -7,8 +7,8 @@ import {
   Text,
   Button,
   Banner,
-  Stack,
   Box,
+  InlineGrid,
   Tabs,
   Checkbox,
   Select,
@@ -23,7 +23,7 @@ import {
 } from '@shopify/polaris';
 import { TitleBar } from '@shopify/app-bridge-react';
 import { useTranslation } from 'react-i18next';
-import { SettingsMajor, ProductsMajor, OrdersMajor, AnalyticsMajor, NotificationMajor } from '@shopify/polaris-icons';
+import { SettingsIcon, ProductIcon, OrderIcon, ChartVerticalIcon, NotificationIcon } from '@shopify/polaris-icons';
 import { safeFetchJson } from '../utils/api.js';
 
 // API service
@@ -223,7 +223,7 @@ export default function Settings() {
     {
       id: 'general',
       content: 'General',
-      icon: SettingsMajor,
+      icon: SettingsIcon,
       panel: (
         <FormLayout>
           <TextField
@@ -261,7 +261,7 @@ export default function Settings() {
     {
       id: 'orders',
       content: 'Orders',
-      icon: OrdersMajor,
+      icon: OrderIcon,
       panel: (
         <FormLayout>
           <SettingToggle
@@ -297,7 +297,7 @@ export default function Settings() {
     {
       id: 'shipping',
       content: 'Shipping',
-      icon: ProductsMajor,
+      icon: ProductIcon,
       panel: (
         <FormLayout>
           <Text variant="headingMd" as="h3">Default Origin Address</Text>
@@ -311,31 +311,25 @@ export default function Settings() {
             value={settings?.shipping?.defaultOrigin?.street || ''}
             onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'street', value)}
           />
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <div style={{ flex: 1 }}>
-              <TextField
-                label="City"
-                value={settings?.shipping?.defaultOrigin?.city || ''}
-                onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'city', value)}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
-              <TextField
-                label="State/Province"
-                value={settings?.shipping?.defaultOrigin?.state || ''}
-                onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'state', value)}
-              />
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: '16px' }}>
-            <div style={{ flex: 1 }}>
-              <TextField
-                label="ZIP/Postal Code"
-                value={settings?.shipping?.defaultOrigin?.zip || ''}
-                onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'zip', value)}
-              />
-            </div>
-            <div style={{ flex: 1 }}>
+          <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+            <TextField
+              label="City"
+              value={settings?.shipping?.defaultOrigin?.city || ''}
+              onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'city', value)}
+            />
+            <TextField
+              label="State/Province"
+              value={settings?.shipping?.defaultOrigin?.state || ''}
+              onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'state', value)}
+            />
+          </InlineGrid>
+          <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
+            <TextField
+              label="ZIP/Postal Code"
+              value={settings?.shipping?.defaultOrigin?.zip || ''}
+              onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'zip', value)}
+            />
+            <div>
               <Select
                 label="Country"
                 options={[
@@ -347,12 +341,12 @@ export default function Settings() {
                 onChange={(value) => handleNestedChange('shipping', 'defaultOrigin', 'country', value)}
               />
             </div>
-          </div>
-          
-          <Box paddingBlockStart="6">
+          </InlineGrid>
+
+          <Box paddingBlockStart="600">
             <Text variant="headingMd" as="h3">Shipping Carriers</Text>
-            <Text variant="bodyMd" color="subdued">Enable or disable shipping carriers</Text>
-            <Box paddingBlockStart="4">
+            <Text variant="bodyMd" tone="subdued">Enable or disable shipping carriers</Text>
+            <Box paddingBlockStart="400">
               {settings?.shipping?.carriers?.map((carrier) => (
                 <SettingToggle
                   key={carrier.id}
@@ -384,7 +378,7 @@ export default function Settings() {
     {
       id: 'notifications',
       content: 'Notifications',
-      icon: NotificationMajor,
+      icon: NotificationIcon,
       panel: (
         <FormLayout>
           <Text variant="headingMd" as="h3">Email Notifications</Text>
@@ -426,7 +420,7 @@ export default function Settings() {
             <Text variant="bodyMd">System alerts</Text>
           </SettingToggle>
           
-          <Box paddingBlockStart="6">
+          <Box paddingBlockStart="600">
             <Text variant="headingMd" as="h3">Desktop Notifications</Text>
             <SettingToggle
               action={{
@@ -454,7 +448,7 @@ export default function Settings() {
     {
       id: 'integrations',
       content: 'Integrations',
-      icon: AnalyticsMajor,
+      icon: ChartVerticalIcon,
       panel: (
         <FormLayout>
           <SettingToggle
@@ -468,7 +462,7 @@ export default function Settings() {
           </SettingToggle>
           
           {settings?.integrations?.shopify?.enabled && (
-            <Box paddingInlineStart="4">
+            <Box paddingInlineStart="400">
               <TextField
                 label="API Key"
                 type="password"
@@ -496,7 +490,7 @@ export default function Settings() {
           </SettingToggle>
           
           {settings?.integrations?.googleAnalytics?.enabled && (
-            <Box paddingInlineStart="4">
+            <Box paddingInlineStart="400">
               <TextField
                 label="Tracking ID"
                 value={settings?.integrations?.googleAnalytics?.trackingId || ''}
@@ -511,7 +505,7 @@ export default function Settings() {
     {
       id: 'advanced',
       content: 'Advanced',
-      icon: SettingsMajor,
+      icon: SettingsIcon,
       panel: (
         <FormLayout>
           <SettingToggle
@@ -522,7 +516,7 @@ export default function Settings() {
             enabled={settings?.advanced?.debugMode || false}
           >
             <Text variant="bodyMd">Debug Mode</Text>
-            <Text variant="bodySm" color="subdued">Show detailed error messages and logs</Text>
+            <Text variant="bodySm" tone="subdued">Show detailed error messages and logs</Text>
           </SettingToggle>
           
           <SettingToggle
@@ -533,7 +527,7 @@ export default function Settings() {
             enabled={settings?.advanced?.apiLogging || false}
           >
             <Text variant="bodyMd">API Request Logging</Text>
-            <Text variant="bodySm" color="subdued">Log all API requests and responses</Text>
+            <Text variant="bodySm" tone="subdued">Log all API requests and responses</Text>
           </SettingToggle>
           
           <SettingToggle
@@ -544,14 +538,14 @@ export default function Settings() {
             enabled={settings?.advanced?.cacheEnabled ?? true}
           >
             <Text variant="bodyMd">Browser Caching</Text>
-            <Text variant="bodySm" color="subdued">Improves performance by caching data locally</Text>
+            <Text variant="bodySm" tone="subdued">Improves performance by caching data locally</Text>
           </SettingToggle>
           
-          <Box paddingBlockStart="6">
-            <Button destructive onClick={() => setIsResetModalOpen(true)}>
+          <Box paddingBlockStart="600">
+            <Button variant="primary" tone="critical" onClick={() => setIsResetModalOpen(true)}>
               Reset to Default Settings
             </Button>
-            <Text variant="bodySm" color="subdued">
+            <Text variant="bodySm" tone="subdued">
               This will restore all settings to their default values.
             </Text>
           </Box>
@@ -592,7 +586,7 @@ export default function Settings() {
       <Layout>
         <Layout.Section>
           {saveStatus.message && (
-            <Box paddingBlockEnd="4">
+            <Box paddingBlockEnd="400">
               <Banner
                 title={saveStatus.message}
                 status={saveStatus.success ? 'success' : 'critical'}
@@ -608,7 +602,7 @@ export default function Settings() {
               onSelect={setActiveTab}
               fitted
             />
-            <Box padding="4">
+            <Box padding="400">
               {tabs[activeTab].panel}
             </Box>
           </Card>

@@ -5,13 +5,18 @@ import {
   Card,
   Text,
   Button,
-  Stack,
+  BlockStack,
+  InlineStack,
+  InlineGrid,
   Banner,
   DropZone,
   Box,
   Spinner,
   Badge,
   Checkbox,
+  IndexTable,
+  Pagination,
+  Link,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useNavigate } from "react-router-dom";
@@ -301,123 +306,85 @@ export default function FulfillOrder() {
 
     return (
       <Layout.Section>
-        <Card
-          title={
-            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-              <div
-                style={{
-                  width: "24px",
-                  height: "24px",
-                  borderRadius: "50%",
-                  backgroundColor: failed > 0 ? "#ffea8a" : "#bfedc1",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack gap="200" blockAlign="center">
+              <Box
+                background={
+                  failed > 0
+                    ? "bg-fill-caution-secondary"
+                    : "bg-fill-success-secondary"
+                }
+                borderRadius="full"
+                padding="200"
+                minWidth="fit-content"
               >
-                {failed > 0 ? (
-                  <span style={{ color: "#9f6b08", fontSize: "14px" }}>!</span>
-                ) : (
-                  <span style={{ color: "#10782e", fontSize: "14px" }}>✓</span>
-                )}
-              </div>
-              <span>Import Summary</span>
-            </div>
-          }
-        >
-          <div style={{ padding: "16px" }}>
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-                gap: "16px",
-                marginBottom: "16px",
-              }}
-            >
-              <div style={summaryCardStyle}>
-                <Text variant="bodySm" color="subdued">
-                  Total Orders
-                </Text>
-                <Text variant="headingXl" as="h3">
-                  {total}
-                </Text>
-              </div>
-              <div style={summaryCardStyle}>
-                <Text variant="bodySm" color="subdued">
-                  Successful
-                </Text>
-                <Text variant="headingXl" as="h3" color="success">
-                  {success}
-                  {total > 0 && (
-                    <span
-                      style={{
-                        fontSize: "14px",
-                        marginLeft: "8px",
-                        color: "#6d7175",
-                      }}
-                    ></span>
-                  )}
-                </Text>
-              </div>
-              <div style={summaryCardStyle}>
-                <Text variant="bodySm" color="subdued">
-                  Failed
-                </Text>
                 <Text
-                  variant="headingXl"
-                  as="h3"
-                  color={failed > 0 ? "critical" : "success"}
+                  as="span"
+                  variant="bodySm"
+                  fontWeight="bold"
+                  tone={failed > 0 ? "caution" : "success"}
                 >
-                  {failed}
-                  {total > 0 && (
-                    <span
-                      style={{
-                        fontSize: "14px",
-                        marginLeft: "8px",
-                        color: failed > 0 ? "#d82c0d" : "#6d7175",
-                      }}
-                    ></span>
-                  )}
+                  {failed > 0 ? "!" : "\u2713"}
                 </Text>
-              </div>
-            </div>
+              </Box>
+              <Text as="h2" variant="headingMd">
+                Import Summary
+              </Text>
+            </InlineStack>
 
-            <div
-              style={{
-                backgroundColor: "#f9fafb",
-                borderRadius: "8px",
-                padding: "16px",
-                marginTop: "16px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: "8px",
-                }}
-              >
-                <div>
-                  <Text variant="bodySm" color="subdued">
+            <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+              <Card background="bg-surface-secondary">
+                <BlockStack gap="100">
+                  <Text variant="bodySm" tone="subdued">
+                    Total Orders
+                  </Text>
+                  <Text variant="headingXl" as="p">
+                    {total}
+                  </Text>
+                </BlockStack>
+              </Card>
+              <Card background="bg-surface-secondary">
+                <BlockStack gap="100">
+                  <Text variant="bodySm" tone="subdued">
+                    Successful
+                  </Text>
+                  <Text variant="headingXl" as="p" tone="success">
+                    {success}
+                  </Text>
+                </BlockStack>
+              </Card>
+              <Card background="bg-surface-secondary">
+                <BlockStack gap="100">
+                  <Text variant="bodySm" tone="subdued">
+                    Failed
+                  </Text>
+                  <Text
+                    variant="headingXl"
+                    as="p"
+                    tone={failed > 0 ? "critical" : "success"}
+                  >
+                    {failed}
+                  </Text>
+                </BlockStack>
+              </Card>
+            </InlineGrid>
+
+            <Box background="bg-surface-secondary" borderRadius="200" padding="400">
+              <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+                <BlockStack gap="100">
+                  <Text variant="bodySm" tone="subdued">
                     Status
                   </Text>
-                  <div
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      marginTop: "4px",
-                    }}
-                  >
-                    <Badge status={statusTone} />
+                  <InlineStack gap="200" blockAlign="center">
+                    <Badge tone={statusTone} />
                     <Text variant="bodyMd" fontWeight="medium">
                       {status}
                     </Text>
-                  </div>
-                </div>
-                <div>
-                  <Text variant="bodySm" color="subdued">
+                  </InlineStack>
+                </BlockStack>
+                <BlockStack gap="100">
+                  <Text variant="bodySm" tone="subdued">
                     Date
                   </Text>
                   <Text variant="bodyMd" fontWeight="medium">
@@ -429,29 +396,21 @@ export default function FulfillOrder() {
                       minute: "2-digit",
                     })}
                   </Text>
-                </div>
-                <div>
-                  <Text variant="bodySm" color="subdued">
+                </BlockStack>
+                <BlockStack gap="100">
+                  <Text variant="bodySm" tone="subdued">
                     Source
                   </Text>
                   <Text variant="bodyMd" fontWeight="medium">
                     Epic Fulfill
                   </Text>
-                </div>
-              </div>
-            </div>
-          </div>
+                </BlockStack>
+              </InlineGrid>
+            </Box>
+          </BlockStack>
         </Card>
       </Layout.Section>
     );
-  };
-
-  const summaryCardStyle = {
-    backgroundColor: "#fff",
-    border: "1px solid #e1e3e5",
-    borderRadius: "8px",
-    padding: "16px",
-    boxShadow: "0 1px 3px rgba(0, 0, 0, 0.05)",
   };
 
   const renderDetailedResults = () => {
@@ -470,232 +429,104 @@ export default function FulfillOrder() {
 
     return (
       <Layout.Section>
-        <Card
-          title={
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                width: "100%",
-              }}
-            >
-              <span>Detailed Order Report</span>
+        <Card>
+          <BlockStack gap="400">
+            <InlineStack align="space-between" blockAlign="center" gap="200">
+              <Text as="h2" variant="headingMd">
+                Detailed Order Report
+              </Text>
               <Button onClick={handleDownloadReport} size="slim">
                 Download Full Report
               </Button>
-            </div>
-          }
-          sectioned
-        >
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead>
-                <tr style={{ backgroundColor: "#f9fafb" }}>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "12px",
-                      borderBottom: "1px solid #e1e3e5",
-                    }}
-                  >
-                    #
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "12px",
-                      borderBottom: "1px solid #e1e3e5",
-                    }}
-                  >
-                    Order #
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "12px",
-                      borderBottom: "1px solid #e1e3e5",
-                    }}
-                  >
-                    Tracking #
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "12px",
-                      borderBottom: "1px solid #e1e3e5",
-                    }}
-                  >
-                    Company
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "12px",
-                      borderBottom: "1px solid #e1e3e5",
-                    }}
-                  >
-                    Status
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      padding: "12px",
-                      borderBottom: "1px solid #e1e3e5",
-                    }}
-                  >
-                    Details
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {paginatedItems.map((r, index) => {
-                  const itemNumber = startIndex + index + 1;
-                  return (
-                    <tr
-                      key={itemNumber}
-                      style={{
-                        borderBottom: "1px solid #f4f6f8",
-                        backgroundColor:
-                          index % 2 === 0 ? "#ffffff" : "#f9fafb",
-                        transition: "background-color 0.2s ease",
-                      }}
-                    >
-                      <td style={{ padding: "12px", color: "#6d7175" }}>
-                        {itemNumber}
-                      </td>
-                      <td style={{ padding: "12px" }}>{r.orderNumber}</td>
-                      <td style={{ padding: "12px" }}>
-                        {r.trackingUrl ? (
-                          <a
-                            href={r.trackingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {r.trackingNumber || "-"}
-                          </a>
-                        ) : (
-                          r.trackingNumber || "-"
-                        )}
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        {r.trackingCompany || "-"}
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        <Badge
-                          status={
-                            r.error
-                              ? "critical"
-                              : r.warning
-                              ? "attention"
-                              : "success"
-                          }
-                        >
-                          {r.error ? "Failed" : r.warning ? "Warning" : "Success"}
-                        </Badge>
-                      </td>
-                      <td style={{ padding: "12px" }}>
-                        {/* `tone` and "caution" are Polaris 12+ spellings and do
-                            nothing on Polaris 10 — this text was rendering with no
-                            colour at all. The v10 prop is `color`, and its warning
-                            value is "warning". */}
-                        <Text
-                          as="span"
-                          color={
-                            r.error
-                              ? "critical"
-                              : r.warning
-                              ? "warning"
-                              : "success"
-                          }
-                          variant="bodySm"
-                        >
-                          {r.error || r.warning || "Fulfilled successfully"}
-                        </Text>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+            </InlineStack>
 
-          <Box paddingBlockStart="4">
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                flexWrap: "wrap",
-                gap: "16px",
-              }}
+            {/* IndexTable rather than a hand-built <table>: it brings the admin's
+                own row, header and responsive behaviour, and it reads the theme
+                instead of the hardcoded greys this used to paint itself with. */}
+            <IndexTable
+              resourceName={{ singular: "order", plural: "orders" }}
+              itemCount={paginatedItems.length}
+              selectable={false}
+              headings={[
+                { title: "#" },
+                { title: "Order #" },
+                { title: "Tracking #" },
+                { title: "Company" },
+                { title: "Status" },
+                { title: "Details" },
+              ]}
             >
-              <Text variant="bodySm" color="subdued">
+              {paginatedItems.map((r, index) => {
+                const itemNumber = startIndex + index + 1;
+                const tone = r.error
+                  ? "critical"
+                  : r.warning
+                  ? "warning"
+                  : "success";
+
+                return (
+                  <IndexTable.Row
+                    id={String(itemNumber)}
+                    key={itemNumber}
+                    position={index}
+                  >
+                    <IndexTable.Cell>
+                      <Text as="span" tone="subdued">
+                        {itemNumber}
+                      </Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span" fontWeight="semibold">
+                        {r.orderNumber}
+                      </Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      {r.trackingUrl ? (
+                        <Link url={r.trackingUrl} target="_blank">
+                          {r.trackingNumber || "-"}
+                        </Link>
+                      ) : (
+                        r.trackingNumber || "-"
+                      )}
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>{r.trackingCompany || "-"}</IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={r.warning ? "attention" : tone}>
+                        {r.error
+                          ? "Failed"
+                          : r.warning
+                          ? "Warning"
+                          : "Success"}
+                      </Badge>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Text as="span" tone={tone} variant="bodySm">
+                        {r.error || r.warning || "Fulfilled successfully"}
+                      </Text>
+                    </IndexTable.Cell>
+                  </IndexTable.Row>
+                );
+              })}
+            </IndexTable>
+
+            <InlineStack align="space-between" blockAlign="center" gap="400">
+              <Text variant="bodySm" tone="subdued">
                 Showing {startIndex + 1} to{" "}
                 {Math.min(startIndex + itemsPerPage, totalItems)} of{" "}
                 {totalItems} orders
               </Text>
 
               {totalPages > 1 && (
-                <div style={{ display: "flex", gap: "8px" }}>
-                  <Button
-                    onClick={() => handlePageChange(1)}
-                    disabled={currentPage === 1}
-                    size="slim"
-                  >
-                    «
-                  </Button>
-                  <Button
-                    onClick={() => handlePageChange(currentPage - 1)}
-                    disabled={currentPage === 1}
-                    size="slim"
-                  >
-                    ‹
-                  </Button>
-
-                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                    // Show pages around current page
-                    let pageNum;
-                    if (totalPages <= 5) {
-                      pageNum = i + 1;
-                    } else if (currentPage <= 3) {
-                      pageNum = i + 1;
-                    } else if (currentPage >= totalPages - 2) {
-                      pageNum = totalPages - 4 + i;
-                    } else {
-                      pageNum = currentPage - 2 + i;
-                    }
-
-                    return (
-                      <Button
-                        key={pageNum}
-                        onClick={() => handlePageChange(pageNum)}
-                        primary={currentPage === pageNum}
-                        size="slim"
-                      >
-                        {pageNum}
-                      </Button>
-                    );
-                  })}
-
-                  <Button
-                    onClick={() => handlePageChange(currentPage + 1)}
-                    disabled={currentPage === totalPages}
-                    size="slim"
-                  >
-                    ›
-                  </Button>
-                  <Button
-                    onClick={() => handlePageChange(totalPages)}
-                    disabled={currentPage === totalPages}
-                    size="slim"
-                  >
-                    »
-                  </Button>
-                </div>
+                <Pagination
+                  hasPrevious={currentPage > 1}
+                  onPrevious={() => handlePageChange(currentPage - 1)}
+                  hasNext={currentPage < totalPages}
+                  onNext={() => handlePageChange(currentPage + 1)}
+                  label={`Page ${currentPage} of ${totalPages}`}
+                />
               )}
-            </div>
-          </Box>
+            </InlineStack>
+          </BlockStack>
         </Card>
       </Layout.Section>
     );
@@ -710,7 +541,7 @@ export default function FulfillOrder() {
           <Layout.Section>
             <Banner
               title="An active plan is required"
-              status="warning"
+              tone="warning"
               action={{
                 content: "Choose a plan",
                 onAction: () => openPricingPage(billing.pricingUrl),
@@ -739,7 +570,7 @@ export default function FulfillOrder() {
                 its own and nothing stops working. The reason to say anything at all
                 is the upcoming charge — a merchant should never be surprised by it. */}
             <Banner
-              status="info"
+              tone="info"
               action={{
                 content: "View plan details",
                 onAction: () => navigate("/plan"),
@@ -758,49 +589,50 @@ export default function FulfillOrder() {
         )}
 
         <Layout.Section>
-          <Card title="Bulk Fulfill Orders via Excel" sectioned>
+          <Card>
+            <BlockStack gap="400">
+            <Text as="h2" variant="headingMd">
+              Bulk Fulfill Orders via Excel
+            </Text>
             <DropZone
               accept=".xlsx, .xls, .csv"
               type="file"
               onDrop={handleDropZoneDrop}
             >
-              <div style={{ padding: "16px", textAlign: "center" }}>
-                <div
-                  style={{
-                    width: "48px",
-                    height: "48px",
-                    backgroundColor: "#f4f6f8",
-                    borderRadius: "50%",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    margin: "0 auto 0px",
-                  }}
-                >
-                  <span style={{ fontSize: "24px" }}>📤</span>
-                </div>
-                <DropZone.FileUpload />
-              </div>
+              <Box padding="400">
+                <BlockStack gap="200" inlineAlign="center">
+                  <Box
+                    background="bg-surface-secondary"
+                    borderRadius="full"
+                    padding="300"
+                  >
+                    <Text as="span" variant="headingLg">
+                      📤
+                    </Text>
+                  </Box>
+                  <DropZone.FileUpload />
+                </BlockStack>
+              </Box>
               {file && (
-                <Stack vertical spacing="tight" alignment="center">
+                <BlockStack gap="200" inlineAlign="center">
                   <Text variant="bodyMd" fontWeight="medium">
                     {file.name}
                   </Text>
-                </Stack>
+                </BlockStack>
               )}
             </DropZone>
 
             {error && (
               <Banner
                 title="Upload failed"
-                status="critical"
+                tone="critical"
                 onDismiss={() => setError(null)}
               >
                 <p>{error}</p>
               </Banner>
             )}
 
-            <Box paddingBlockStart="4">
+            <Box paddingBlockStart="400">
               <Checkbox
                 label="Send shipping notification to customers"
                 helpText="Off by default. Notification emails cannot be undone, so check this only when the tracking numbers in your sheet are final."
@@ -810,10 +642,10 @@ export default function FulfillOrder() {
               />
             </Box>
 
-            <Box paddingBlockStart="4">
-              <Stack alignment="center" distribution="start" spacing="tight">
+            <Box>
+              <InlineStack blockAlign="center" align="start" gap="200">
                 <Button
-                  primary
+                  variant="primary"
                   onClick={handleUpload}
                   loading={uploading}
                   disabled={!file || uploading || blockedByBilling}
@@ -827,35 +659,41 @@ export default function FulfillOrder() {
                 <Button onClick={handleDownloadSample}>
                   Download Sample Excel
                 </Button>
-              </Stack>
+              </InlineStack>
             </Box>
+            </BlockStack>
           </Card>
         </Layout.Section>
 
+        {/* The scrim used a hardcoded translucent white, which turns into a bright
+            sheet over a dark admin. bg-backdrop is the token Shopify's own modals
+            dim with, so it follows the merchant's theme. */}
         {uploading && (
-          <div
-            style={{
-              position: "fixed",
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              backgroundColor: "rgba(255, 255, 255, 0.8)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-            }}
+          <Box
+            position="fixed"
+            insetBlockStart="0"
+            insetBlockEnd="0"
+            insetInlineStart="0"
+            insetInlineEnd="0"
+            background="backdrop-bg"
+            zIndex="1000"
           >
-            <div style={{ textAlign: "center" }}>
-              <Spinner accessibilityLabel="Uploading file" size="large" />
-              <div style={{ marginTop: "16px" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                height: "100%",
+              }}
+            >
+              <BlockStack gap="400" inlineAlign="center">
+                <Spinner accessibilityLabel="Uploading file" size="large" />
                 <Text variant="bodyMd" as="p">
                   Processing your file...
                 </Text>
-              </div>
+              </BlockStack>
             </div>
-          </div>
+          </Box>
         )}
 
         {renderImportSummary()}

@@ -1,7 +1,7 @@
 import { useAppBridge } from "@shopify/app-bridge-react";
 import { useEffect, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Banner, Layout, Page } from "@shopify/polaris";
+import { Banner, Box, Layout, Page } from "@shopify/polaris";
 
 export default function ExitIframe() {
   const app = useAppBridge();
@@ -31,11 +31,11 @@ export default function ExitIframe() {
     <Page narrowWidth>
       <Layout>
         <Layout.Section>
-          <div style={{ marginTop: "100px" }}>
-            <Banner title="Redirecting outside of Shopify" status="warning">
+          <Box paddingBlockStart="800">
+            <Banner title="Redirecting outside of Shopify" tone="warning">
               Apps can only use /exitiframe to reach Shopify or the app itself.
             </Banner>
-          </div>
+          </Box>
         </Layout.Section>
       </Layout>
     </Page>
