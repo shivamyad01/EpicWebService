@@ -7,7 +7,8 @@ import {
   Text,
   Button,
   Banner,
-  Stack,
+  BlockStack,
+  InlineStack,
   Box,
   Spinner,
   Icon,
@@ -18,11 +19,11 @@ import {
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useTranslation } from "react-i18next";
 import {
-  EmailMajor,
-  ProfileMajor,
-  NoteMajor,
-  StarFilledMinor,
-  StarOutlineMinor,
+  EmailIcon,
+  ProfileIcon,
+  NoteIcon,
+  StarFilledIcon,
+  StarIcon,
 } from "@shopify/polaris-icons";
 
 const FEEDBACK_TYPES = [
@@ -142,11 +143,11 @@ export default function Feedback() {
   };
 
   const renderRatingStars = () => (
-    <Stack vertical spacing="tight">
-      <Text variant="bodyMd" color="subdued">
+    <BlockStack gap="200">
+      <Text variant="bodyMd" tone="subdued">
         How would you rate your experience?
       </Text>
-      <Stack spacing="extraTight">
+      <InlineStack gap="100">
         {RATINGS.map((star) => (
           <button
             key={star}
@@ -161,37 +162,29 @@ export default function Feedback() {
           >
             <Icon
               source={
-                star <= formData.rating ? StarFilledMinor : StarOutlineMinor
+                star <= formData.rating ? StarFilledIcon : StarIcon
               }
-              color={star <= formData.rating ? "warning" : "base"}
+              tone={star <= formData.rating ? "warning" : "base"}
             />
           </button>
         ))}
-      </Stack>
-    </Stack>
+      </InlineStack>
+    </BlockStack>
   );
 
   const renderForm = () => (
-    <Stack
-      vertical
-      spacing="loose"
-      style={{
-        maxHeight: "calc(100vh - 200px)",
-        overflowY: "auto",
-        padding: "8px",
-      }}
-    >
-      <Box paddingBlockStart="4">
+    <BlockStack gap="500">
+      <Box paddingBlockStart="400">
         <Text as="h2" variant="headingXl">
           {t("Feedback.title") || "Share Your Feedback"}
         </Text>
-        <Text as="p" variant="bodyMd" color="subdued">
+        <Text as="p" variant="bodyMd" tone="subdued">
           {t("Feedback.subtitle") ||
             "We'd love to hear your thoughts to help improve our service."}
         </Text>
       </Box>
 
-      <Stack vertical spacing="base">
+      <BlockStack gap="400">
         <div>
           <Select
             label="Feedback type"
@@ -208,7 +201,7 @@ export default function Feedback() {
             onChange={handleChange("name")}
             onBlur={handleBlur("name")}
             autoComplete="name"
-            prefix={<Icon source={ProfileMajor} color="base" />}
+            prefix={<Icon source={ProfileIcon} tone="base" />}
             error={
               touched.name && !formData.name.trim() ? "Name is required" : ""
             }
@@ -223,7 +216,7 @@ export default function Feedback() {
             onChange={handleChange("email")}
             onBlur={handleBlur("email")}
             autoComplete="email"
-            prefix={<Icon source={EmailMajor} color="base" />}
+            prefix={<Icon source={EmailIcon} tone="base" />}
             error={
               touched.email &&
               (!formData.email.trim()
@@ -251,14 +244,14 @@ export default function Feedback() {
                 ? "Feedback is required"
                 : ""
             }
-            prefix={<Icon source={NoteMajor} color="base" />}
+            prefix={<Icon source={NoteIcon} tone="base" />}
           />
         </div>
 
-        <Box paddingBlockStart="4">
+        <Box paddingBlockStart="400">
           <Button
             onClick={handleSubmit}
-            primary
+            variant="primary"
             fullWidth
             size="large"
             loading={isSubmitting}
@@ -267,59 +260,49 @@ export default function Feedback() {
             {t("Feedback.submitButton") || "Submit Feedback"}
           </Button>
         </Box>
-      </Stack>
-    </Stack>
+      </BlockStack>
+    </BlockStack>
   );
 
   const renderSuccessMessage = () => (
-    <Stack
-      vertical
-      spacing="loose"
-      alignment="center"
-      style={{ padding: "16px 0" }}
-    >
-      <div style={{ textAlign: "center" }}>
-        <div
-          style={{
-            width: "64px",
-            height: "64px",
-            borderRadius: "50%",
-            backgroundColor: "#e3f1df",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            margin: "0 auto 16px",
-          }}
+    <BlockStack gap="500" inlineAlign="center">
+      <BlockStack gap="400" inlineAlign="center">
+        <Box
+          background="bg-fill-success-secondary"
+          borderRadius="full"
+          padding="400"
         >
-          <Icon source={NoteMajor} color="success" />
-        </div>
-        <Text as="h2" variant="headingXl">
+          <Icon source={NoteIcon} tone="success" />
+        </Box>
+        <Text as="h2" variant="headingXl" alignment="center">
           Thank You for Your Feedback!
         </Text>
-        <Text as="p" variant="bodyLg" color="subdued">
+        <Text as="p" variant="bodyLg" tone="subdued" alignment="center">
           We appreciate you taking the time to help us improve. Your insights
           are valuable to us.
         </Text>
-      </div>
-      <Box paddingBlockStart="4">
+      </BlockStack>
+      <Box paddingBlockStart="400">
         <Button onClick={() => setSubmitted(false)}>
           Submit Another Feedback
         </Button>
       </Box>
-    </Stack>
+    </BlockStack>
   );
 
   return (
-    <Page fullWidth>
+    <Page narrowWidth>
       <TitleBar title={t("Feedback.title") || "Feedback"} />
       <Layout>
         <Layout.Section>
-          <Card sectioned style={{ maxWidth: "800px", margin: "0 auto" }}>
+          {/* Card lost `sectioned` in Polaris 12 and never took `style` — the
+              width cap belongs on the page, which is what narrowWidth does. */}
+          <Card>
             {error && (
-              <Box paddingBlockEnd="4">
+              <Box paddingBlockEnd="400">
                 <Banner
                   title=""
-                  status="critical"
+                  tone="critical"
                   onDismiss={() => setError("")}
                 >
                   <p>{error}</p>
@@ -329,8 +312,8 @@ export default function Feedback() {
 
             {submitted ? renderSuccessMessage() : renderForm()}
 
-            <Box paddingBlockStart="8">
-              <Text as="p" variant="bodySm" color="subdued" alignment="center">
+            <Box paddingBlockStart="800">
+              <Text as="p" variant="bodySm" tone="subdued" alignment="center">
                 Need immediate assistance?{" "}
                 <Link url="mailto:support@epicfulfill.com" external>
                   Contact our support team

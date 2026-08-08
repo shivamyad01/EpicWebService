@@ -2,9 +2,9 @@ import React, { useState } from "react";
 import {
   Page,
   Layout,
-  AlphaCard,
-  VerticalStack,
-  HorizontalStack,
+  Card,
+  BlockStack,
+  InlineStack,
   Divider,
   Text,
   Button,
@@ -32,7 +32,7 @@ import {
  * Shopify's hosted pricing page, so this page only reports state and links out.
  *
  * Built on Polaris primitives with no inline styles: AnnotatedSection for the
- * settings-page shape, AlphaCard for surfaces, and stacks with gap tokens for
+ * settings-page shape, Card for surfaces, and stacks with gap tokens for
  * spacing. Hand-rolled padding here would drift from the admin the first time
  * Shopify adjusts its spacing scale.
  */
@@ -40,14 +40,14 @@ import {
 /** One label/value line inside a card. */
 function DetailRow({ label, value }) {
   return (
-    <HorizontalStack align="space-between" blockAlign="baseline" gap="4">
-      <Text as="span" color="subdued">
+    <InlineStack align="space-between" blockAlign="baseline" gap="400">
+      <Text as="span" tone="subdued">
         {label}
       </Text>
       <Text as="span" fontWeight="medium" alignment="end">
         {value}
       </Text>
-    </HorizontalStack>
+    </InlineStack>
   );
 }
 
@@ -71,12 +71,12 @@ function PlanSkeleton() {
           title="Subscription"
           description="Your plan is managed by Shopify."
         >
-          <AlphaCard>
-            <VerticalStack gap="4">
+          <Card>
+            <BlockStack gap="400">
               <SkeletonDisplayText size="small" />
               <SkeletonBodyText lines={3} />
-            </VerticalStack>
-          </AlphaCard>
+            </BlockStack>
+          </Card>
         </Layout.AnnotatedSection>
       </Layout>
     </Page>
@@ -138,11 +138,11 @@ export default function Plan() {
   const statusBadge = unknown ? (
     <Badge>Couldn't check</Badge>
   ) : !billing.active ? (
-    <Badge status="critical">No plan</Badge>
+    <Badge tone="critical">No plan</Badge>
   ) : inTrial ? (
-    <Badge status="info">Free trial</Badge>
+    <Badge tone="info">Free trial</Badge>
   ) : (
-    <Badge status="success">Active</Badge>
+    <Badge tone="success">Active</Badge>
   );
 
   const statusValue = unknown
@@ -162,7 +162,7 @@ export default function Plan() {
           <Layout.Section>
             <Banner
               title="Your plan is cancelled"
-              status="success"
+              tone="success"
               onDismiss={() => setCancelled(null)}
             >
               <p>
@@ -181,7 +181,7 @@ export default function Plan() {
           <Layout.Section>
             <Banner
               title="Couldn't cancel your plan"
-              status="critical"
+              tone="critical"
               onDismiss={() => setCancelError(null)}
             >
               <p>{cancelError}</p>
@@ -191,7 +191,7 @@ export default function Plan() {
 
         {unknown && (
           <Layout.Section>
-            <Banner status="warning">
+            <Banner tone="warning">
               <p>
                 We couldn't reach Shopify to confirm your subscription. Your
                 access is unaffected — try again in a moment.
@@ -204,7 +204,7 @@ export default function Plan() {
           <Layout.Section>
             <Banner
               title="Bulk fulfillment is paused"
-              status="warning"
+              tone="warning"
               action={{
                 content: "Choose a plan",
                 onAction: () => openPricingPage(billing.pricingUrl),
@@ -223,29 +223,29 @@ export default function Plan() {
           title="Subscription"
           description="Plans are managed by Shopify. Any charge appears on your regular Shopify bill, not as a separate invoice."
         >
-          <AlphaCard>
-            <VerticalStack gap="5">
-              <HorizontalStack align="space-between" blockAlign="start" gap="4">
-                <VerticalStack gap="1">
+          <Card>
+            <BlockStack gap="500">
+              <InlineStack align="space-between" blockAlign="start" gap="400">
+                <BlockStack gap="100">
                   <Text as="h2" variant="headingMd">
                     {planTitle}
                   </Text>
                   {priceLabel && (
-                    <Text as="p" variant="bodySm" color="subdued">
+                    <Text as="p" variant="bodySm" tone="subdued">
                       {priceLabel}
                     </Text>
                   )}
-                </VerticalStack>
-                <HorizontalStack gap="2">
+                </BlockStack>
+                <InlineStack gap="200">
                   {statusBadge}
                   {/* Dev and demo stores can only hold test subscriptions. Saying
                       so here heads off the obvious question about the $0. */}
                   {billing.test === true && <Badge>Test</Badge>}
-                </HorizontalStack>
-              </HorizontalStack>
+                </InlineStack>
+              </InlineStack>
 
               {billing.test === true && (
-                <Banner status="info">
+                <Banner tone="info">
                   <p>
                     This is a test subscription on a development store. It is
                     never charged. Regular pricing applies once the store goes
@@ -256,7 +256,7 @@ export default function Plan() {
 
               <Divider />
 
-              <VerticalStack gap="3">
+              <BlockStack gap="300">
                 <DetailRow label="Status" value={statusValue} />
                 {inTrial && (
                   <DetailRow
@@ -270,7 +270,7 @@ export default function Plan() {
                     value={formatDate(billing.currentPeriodEnd) || "—"}
                   />
                 )}
-              </VerticalStack>
+              </BlockStack>
 
               <Divider />
 
@@ -285,7 +285,7 @@ export default function Plan() {
                     Cancel plan
                   </Button>
                 ) : (
-                  <Button primary onClick={() => openPricingPage(billing.pricingUrl)}>
+                  <Button variant="primary" onClick={() => openPricingPage(billing.pricingUrl)}>
                     {unknown ? "View plan" : "Choose a plan"}
                   </Button>
                 )}
@@ -293,8 +293,8 @@ export default function Plan() {
                   Refresh
                 </Button>
               </ButtonGroup>
-            </VerticalStack>
-          </AlphaCard>
+            </BlockStack>
+          </Card>
         </Layout.AnnotatedSection>
 
         <Layout.AnnotatedSection
@@ -302,7 +302,7 @@ export default function Plan() {
           title="What's included"
           description="Every plan includes the full fulfillment workflow."
         >
-          <AlphaCard>
+          <Card>
             <List>
               <List.Item>
                 Bulk fulfill orders from an Excel or CSV upload
@@ -319,7 +319,7 @@ export default function Plan() {
                 row
               </List.Item>
             </List>
-          </AlphaCard>
+          </Card>
         </Layout.AnnotatedSection>
 
         <Layout.AnnotatedSection
@@ -327,20 +327,20 @@ export default function Plan() {
           title="Cancelling"
           description="You stay in control of the subscription from your Shopify admin."
         >
-          <AlphaCard>
-            <VerticalStack gap="3">
-              <Text as="p" color="subdued">
+          <Card>
+            <BlockStack gap="300">
+              <Text as="p" tone="subdued">
                 Use <b>Cancel plan</b> above, or cancel from{" "}
                 <b>Settings → Apps and sales channels</b> in your Shopify admin.
                 Uninstalling the app also cancels it.
               </Text>
-              <Text as="p" color="subdued">
+              <Text as="p" tone="subdued">
                 Bulk fulfillment stops as soon as you cancel, and Shopify refunds
                 the unused part of the current period. Fulfillments already created
                 stay in place, and your reports remain downloadable without a plan.
               </Text>
-            </VerticalStack>
-          </AlphaCard>
+            </BlockStack>
+          </Card>
         </Layout.AnnotatedSection>
       </Layout>
 
@@ -363,7 +363,7 @@ export default function Plan() {
         ]}
       >
         <Modal.Section>
-          <VerticalStack gap="3">
+          <BlockStack gap="300">
             {/* Stated plainly because it is the part merchants get wrong: Shopify
                 drops a cancelled subscription out of activeSubscriptions at once,
                 so this is not "cancel at period end". */}
@@ -383,7 +383,7 @@ export default function Plan() {
               </List.Item>
               <List.Item>You can subscribe again at any time.</List.Item>
             </List>
-          </VerticalStack>
+          </BlockStack>
         </Modal.Section>
       </Modal>
     </Page>
