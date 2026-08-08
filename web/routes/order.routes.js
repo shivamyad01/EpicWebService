@@ -6,6 +6,7 @@
 import { Router } from "express";
 import { upload } from "../middleware/upload.middleware.js";
 import { validateFileUpload } from "../middleware/validation.middleware.js";
+import { requireActiveSubscription } from "../middleware/billing.middleware.js";
 import {
   bulkFulfillOrders,
   getFulfillmentReport,
@@ -34,9 +35,14 @@ const handleFileUpload = (req, res, next) => {
 /**
  * POST /api/orders/bulk-fulfill
  * Bulk fulfill orders from uploaded Excel file
+ *
+ * The subscription check runs ahead of the upload handler on purpose: a rejected
+ * request should not spend a 10MB write to the uploads volume first, and skipping
+ * multer means there is no temp file left to clean up.
  */
 router.post(
   "/bulk-fulfill",
+  requireActiveSubscription,
   handleFileUpload,
   validateFileUpload,
   bulkFulfillOrders
@@ -45,12 +51,16 @@ router.post(
 /**
  * GET /api/orders/fulfillment-report
  * Get the last fulfillment report
+ *
+ * Deliberately not behind requireActiveSubscription. This report covers work the
+ * merchant has already paid for, and a cancelled or lapsed plan should not lock
+ * them out of their own fulfillment record.
  */
 router.get("/fulfillment-report", getFulfillmentReport);
 
 /**
  * GET /api/orders/fulfillment-report/download
- * Download fulfillment report as Excel file
+ * Download fulfillment report as Excel file — ungated, as above.
  */
 router.get("/fulfillment-report/download", downloadFulfillmentReport);
 

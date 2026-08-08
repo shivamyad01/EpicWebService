@@ -16,6 +16,16 @@ api_version = "2024-10"
   uri = "/api/webhooks"
   compliance_topics = [ "customers/data_request", "customers/redact", "shop/redact" ]
 
+  # app_subscriptions/update keeps the billing gate honest: without it a merchant
+  # who just subscribed waits out the cache TTL before they can upload, and one who
+  # cancelled keeps working for it. Handlers live in web/webhooks/index.js.
+  #
+  # These reach the app only after `shopify app deploy` — editing this file alone
+  # changes nothing on Shopify's side.
+  [[webhooks.subscriptions]]
+  uri = "/api/webhooks"
+  topics = [ "app_subscriptions/update", "app/uninstalled" ]
+
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
 scopes = "read_customers,read_orders,read_products,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_products,write_third_party_fulfillment_orders,read_locations"

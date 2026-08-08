@@ -8,15 +8,26 @@ import {
   Stack,
   Banner,
   DropZone,
-  HorizontalGrid,
   Box,
   Spinner,
   Badge,
   Checkbox,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { safeFetchJson, safeFetchBlob } from "../utils/api.js";
+import {
+  useBilling,
+  openPricingPage,
+  trialDaysLeft,
+  formatPrice,
+} from "../hooks/useBilling.js";
+
+// Show the trial countdown only once it is worth acting on. The Plan page carries
+// the full detail, so repeating "5 days left" on every visit is banner fatigue —
+// by the time it matters the merchant has learned to ignore it.
+const TRIAL_WARNING_DAYS = 3;
 
 export default function FulfillOrder() {
   const [file, setFile] = useState(null);
@@ -27,7 +38,18 @@ export default function FulfillOrder() {
   // Off by default. Shipping emails cannot be unsent, so sending them is a choice
   // the merchant makes per upload rather than something the app does silently.
   const [notifyCustomer, setNotifyCustomer] = useState(false);
+  const billing = useBilling();
+  const navigate = useNavigate();
   const itemsPerPage = 5;
+
+  const trialDays = trialDaysLeft(billing.trialEndsAt);
+  // Only block once the check has actually come back saying so. While it is in
+  // flight the hook reports active, so a subscribed merchant never sees the upload
+  // button flicker to disabled on load.
+  const blockedByBilling = !billing.loading && !billing.active;
+  const trialEndingSoon =
+    !blockedByBilling && trialDays !== null && trialDays <= TRIAL_WARNING_DAYS;
+  const trialPrice = formatPrice(billing.price);
 
   const handleDropZoneDrop = (_dropFiles, acceptedFiles) => {
     setFile(acceptedFiles[0]);
@@ -53,7 +75,11 @@ export default function FulfillOrder() {
       setResult(data.summary);
       setFile(null);
     } catch (err) {
-      setError(err.message);
+      // A plan can lapse between page load and upload. The gate's 402 turns into
+      // the paywall banner rather than a raw error the merchant cannot act on.
+      if (!billing.applySubscriptionError(err)) {
+        setError(err.message);
+      }
     } finally {
       setUploading(false);
     }
@@ -569,12 +595,17 @@ export default function FulfillOrder() {
                         </Badge>
                       </td>
                       <td style={{ padding: "12px" }}>
+                        {/* `tone` and "caution" are Polaris 12+ spellings and do
+                            nothing on Polaris 10 — this text was rendering with no
+                            colour at all. The v10 prop is `color`, and its warning
+                            value is "warning". */}
                         <Text
-                          tone={
+                          as="span"
+                          color={
                             r.error
                               ? "critical"
                               : r.warning
-                              ? "caution"
+                              ? "warning"
                               : "success"
                           }
                           variant="bodySm"
@@ -675,6 +706,57 @@ export default function FulfillOrder() {
       <TitleBar title="Epic Fulfill: Bulk Orders" />
 
       <Layout>
+        {blockedByBilling && (
+          <Layout.Section>
+            <Banner
+              title="An active plan is required"
+              status="warning"
+              action={{
+                content: "Choose a plan",
+                onAction: () => openPricingPage(billing.pricingUrl),
+              }}
+              secondaryAction={{
+                content: "View plan details",
+                onAction: () => navigate("/plan"),
+              }}
+            >
+              <p>
+                Bulk fulfillment needs an active subscription. Choosing a plan
+                starts your free trial, and you can cancel from your Shopify
+                admin at any time.
+              </p>
+              <p>
+                Reports from your previous runs stay available below without a
+                plan.
+              </p>
+            </Banner>
+          </Layout.Section>
+        )}
+
+        {trialEndingSoon && (
+          <Layout.Section>
+            {/* Informational, not a warning: the trial converts to the paid plan on
+                its own and nothing stops working. The reason to say anything at all
+                is the upcoming charge — a merchant should never be surprised by it. */}
+            <Banner
+              status="info"
+              action={{
+                content: "View plan details",
+                onAction: () => navigate("/plan"),
+              }}
+            >
+              <p>
+                {trialDays === 1
+                  ? "Your free trial ends today."
+                  : `Your free trial ends in ${trialDays} days.`}{" "}
+                {trialPrice
+                  ? `Your plan then continues at ${trialPrice}.`
+                  : "Your plan then continues as normal."}
+              </p>
+            </Banner>
+          </Layout.Section>
+        )}
+
         <Layout.Section>
           <Card title="Bulk Fulfill Orders via Excel" sectioned>
             <DropZone
@@ -734,11 +816,14 @@ export default function FulfillOrder() {
                   primary
                   onClick={handleUpload}
                   loading={uploading}
-                  disabled={!file || uploading}
+                  disabled={!file || uploading || blockedByBilling}
                 >
                   {uploading ? "Uploading..." : "Upload and Fulfill Orders"}
                 </Button>
 
+                {/* Left enabled without a plan on purpose — a merchant deciding
+                    whether to subscribe should be able to see the file format
+                    the app expects first. */}
                 <Button onClick={handleDownloadSample}>
                   Download Sample Excel
                 </Button>

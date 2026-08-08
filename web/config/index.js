@@ -26,6 +26,46 @@ export const config = {
     apiVersion: "2024-10"
   },
 
+  // Shopify Managed Pricing. The plans themselves live in the Partner Dashboard,
+  // never here — this app only asks whether a subscription exists and sends
+  // merchants to Shopify's hosted pricing page when it does not. It must not
+  // create charges of its own; doing both is how merchants get double-billed.
+  billing: {
+    // The `handle` from shopify.app.toml. This is the path segment in the hosted
+    // pricing page URL, and is not the same value as client_id.
+    appHandle: process.env.SHOPIFY_APP_HANDLE || "epic-fulfill-bulk-orders",
+
+    // Development stores can only ever hold *test* subscriptions, so a deployed
+    // container being tested against a dev store has to accept them. This is
+    // deliberately its own env var rather than a NODE_ENV check: docker-compose
+    // hardcodes NODE_ENV=production, which would otherwise make the live
+    // container impossible to test.
+    //
+    // It must be false for real merchants. A test charge unlocking a paying
+    // shop's app is the failure mode this flag exists to prevent.
+    acceptTestCharges:
+      process.env.BILLING_ACCEPT_TEST_CHARGES === "true" ||
+      process.env.NODE_ENV !== "production",
+
+    // How long a subscription lookup is trusted. Every check costs a GraphQL
+    // call, and one upload can involve several requests. The
+    // app_subscriptions/update webhook clears this early, so the TTL only
+    // covers changes that arrive without a webhook.
+    cacheTtlMs: 60 * 1000,
+
+    // A billing lookup that throws means Shopify was unreachable, not that the
+    // merchant has no plan. Refusing the upload would cost them a shipping day
+    // over an outage on our side, so transient failures let the request through
+    // and leave a log line instead.
+    failOpen: true,
+
+    // Refund the unused part of the current period when a merchant cancels from
+    // inside the app. Cancelling ends access immediately (Shopify drops the
+    // subscription out of activeSubscriptions the moment it is cancelled), so
+    // charging for days they can no longer use would be indefensible.
+    prorateOnCancel: true
+  },
+
   // Fulfillment reports live on the mounted volume (docker-compose mounts app_data
   // at /app/data), so a restart or redeploy does not lose the last run's report.
   reportDir:

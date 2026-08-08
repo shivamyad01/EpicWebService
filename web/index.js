@@ -10,9 +10,9 @@ import serveStatic from "serve-static";
 
 // Internal imports
 import shopify from "./shopify.js";
-import PrivacyWebhookHandlers from "./privacy.js";
+import WebhookHandlers from "./webhooks/index.js";
 import config from "./config/index.js";
-import { orderRoutes, settingsRoutes } from "./routes/index.js";
+import { orderRoutes, settingsRoutes, billingRoutes } from "./routes/index.js";
 
 const app = express();
 
@@ -29,9 +29,13 @@ app.get(
 // =============================================================================
 // WEBHOOKS (Public)
 // =============================================================================
+// Registered before the /api/* session check below, so Express matches this route
+// first. Webhooks carry an HMAC instead of a session and would be rejected by it.
+// It must also stay ahead of express.json(), which would consume the raw body the
+// HMAC is computed over.
 app.post(
   shopify.config.webhooks.path,
-  shopify.processWebhooks({ webhookHandlers: PrivacyWebhookHandlers })
+  shopify.processWebhooks({ webhookHandlers: WebhookHandlers })
 );
 
 // =============================================================================
@@ -45,6 +49,7 @@ app.use(express.json());
 // =============================================================================
 app.use("/api/orders", orderRoutes);
 app.use("/api/settings", settingsRoutes);
+app.use("/api/billing", billingRoutes);
 
 // =============================================================================
 // STATIC FILES & CSP

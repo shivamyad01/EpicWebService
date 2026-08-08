@@ -21,6 +21,10 @@ export default function App() {
           <NavMenu>
             <a href="/" rel="home" />
             <a href="/fulfillorder">{t("NavigationMenu.fulfillOrder")}</a>
+            {/* Hardcoded like Settings below — the locale files only carry the two
+                keys that were translated, and a half-translated key reads worse
+                than an untranslated one. */}
+            <a href="/plan">Plan</a>
             <a href="/feedback">{t("NavigationMenu.feedback")}</a>
             <a href="/settings">Settings</a>
           </NavMenu>
