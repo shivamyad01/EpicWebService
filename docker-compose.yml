@@ -20,8 +20,10 @@ services:
     # A healthcheck here overrides the image's own, so it has to resolve the port
     # the same way: BACKEND_PORT wins over PORT (see web/config/index.js). The $$
     # keeps the expansion for the container's shell instead of Compose's parser.
+    # 127.0.0.1, not localhost — that resolves to ::1 first and the server is
+    # IPv4-only, so localhost fails against a perfectly healthy app.
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:$${BACKEND_PORT:-$${PORT:-8081}}/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:$${BACKEND_PORT:-$${PORT:-8081}}/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
