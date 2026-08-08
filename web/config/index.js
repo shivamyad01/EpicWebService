@@ -82,8 +82,6 @@ export const config = {
     retryDelayMs: 1000
   },
   
-  defaultTrackingCompany: "India Post",
-
   // Carrier names Shopify recognizes, spelled exactly as Shopify expects
   // (capitalization matters). Sending one of these is what makes Shopify select
   // the carrier, build the tracking URL itself, and keep shipment_status

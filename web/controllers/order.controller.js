@@ -12,7 +12,6 @@ import {
   setFulfillmentSummary,
   generateFulfillmentReport
 } from "../services/fulfillment.service.js";
-import { getSettings } from "../services/settings.service.js";
 
 // Batch processing configuration
 const BATCH_SIZE = 10; // Process orders in batches
@@ -54,10 +53,6 @@ export const bulkFulfillOrders = async (req, res) => {
   const session = res.locals.shopify.session;
   const { shop } = session;
   const client = new shopify.api.clients.Graphql({ session });
-
-  // Read once per upload, not per row: it is the same answer for every order in
-  // the file, and a settings lookup per row would be thousands of reads.
-  const { defaultCarrier } = await getSettings(shop);
 
   try {
     // Parse Excel file with validation
@@ -126,13 +121,7 @@ export const bulkFulfillOrders = async (req, res) => {
           const groupResults = [];
           for (const order of group) {
             groupResults.push(
-              await processOrderFulfillment(
-                order,
-                session,
-                client,
-                notifyCustomer,
-                defaultCarrier
-              )
+              await processOrderFulfillment(order, session, client, notifyCustomer)
             );
           }
           return groupResults;

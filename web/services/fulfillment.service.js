@@ -182,6 +182,10 @@ export const parseExcelFile = (filePath) => {
     throw new Error('Missing required column: TrackingNumber (or Tracking Number)');
   }
 
+  if (!hasColumn(COMPANY_HEADERS)) {
+    throw new Error('Missing required column: TrackingCompany (or Tracking Company)');
+  }
+
   return rows
     .map((row) => {
       const pick = columnPicker(row);
@@ -196,7 +200,7 @@ export const parseExcelFile = (filePath) => {
         // Couriers never use spaces inside an AWB, but merchants paste them in.
         // Left alone they would be percent-encoded into the tracking URL.
         TrackingNumber: number.text.replace(/\s+/g, ''),
-        TrackingCompany: company.text || config.defaultTrackingCompany,
+        TrackingCompany: company.text,
         TrackingUrl: url.text,
         parseError:
           (order.error && `Order Number ${order.error}`) ||
@@ -427,16 +431,13 @@ export const createFulfillment = async (client, fulfillmentOrders, trackingInfo,
  * selects the carrier, builds the tracking URL, and updates shipment_status
  * when the name matches its list character for character.
  */
-export const resolveCarrierName = (
-  trackingCompany,
-  defaultCompany = config.defaultTrackingCompany
-) => {
+export const resolveCarrierName = (trackingCompany) => {
   const value = String(trackingCompany || "").trim();
   if (!value) {
-    // The shop's own default, when it has set one. The app-wide fallback is
-    // India Post, which is the wrong guess for most merchants and used to be
-    // unreachable from the settings page.
-    return { name: defaultCompany || config.defaultTrackingCompany, isKnown: true };
+    // No fallback on purpose. A blank carrier used to become "India Post", which
+    // shipped a real order under a carrier nobody chose and built a tracking link
+    // that led nowhere. The row fails instead, and the merchant fixes the sheet.
+    return { name: "", isKnown: false, missing: true };
   }
 
   const lower = value.toLowerCase();
@@ -545,13 +546,12 @@ export const applyTrackingNumberToUrl = (rawUrl, trackingNumber) => {
  *
  * A `url` of null therefore means "let Shopify build the link".
  */
-export const resolveTracking = (
-  trackingNumber,
-  trackingCompany,
-  sheetUrl,
-  defaultCompany
-) => {
-  const { name, isKnown } = resolveCarrierName(trackingCompany, defaultCompany);
+export const resolveTracking = (trackingNumber, trackingCompany, sheetUrl) => {
+  const { name, isKnown, missing } = resolveCarrierName(trackingCompany);
+
+  if (missing) {
+    return { company: "", url: null, isKnown: false, error: "Missing Carrier" };
+  }
 
   const custom = normalizeTrackingUrl(applyTrackingNumberToUrl(sheetUrl, trackingNumber));
   if (custom.error) {
@@ -623,8 +623,7 @@ export const processOrderFulfillment = async (
   order,
   session,
   client,
-  notifyCustomer = false,
-  defaultCarrier
+  notifyCustomer = false
 ) => {
   const { shop, accessToken } = session;
   
@@ -633,12 +632,7 @@ export const processOrderFulfillment = async (
   const orderNumberRaw = String(order.OrderNumber || order.Name || "").trim();
   const orderNumber = parseOrderNumber(orderNumberRaw);
   const trackingNumber = (order.TrackingNumber || "").toString().trim();
-  const tracking = resolveTracking(
-    trackingNumber,
-    order.TrackingCompany,
-    order.TrackingUrl,
-    defaultCarrier
-  );
+  const tracking = resolveTracking(trackingNumber, order.TrackingCompany, order.TrackingUrl);
   const trackingCompany = tracking.company;
   let trackingUrl = tracking.url || "";
 
@@ -657,9 +651,15 @@ export const processOrderFulfillment = async (
   }
 
   // Validate required fields. The raw name is what matters; a numeric order_number
-  // is optional because names like "#1025-A" have none we can trust.
-  if (!orderNumberRaw || !trackingNumber) {
-    return row({ error: "Missing Order Number or Tracking Number" });
+  // is optional because names like "#1025-A" have none we can trust. Naming the
+  // empty columns beats "Missing Order Number or Tracking Number" on a sheet where
+  // the merchant has to work out which of them it meant.
+  const missingFields = [];
+  if (!orderNumberRaw) missingFields.push("Order Number");
+  if (!trackingNumber) missingFields.push("Tracking Number");
+
+  if (missingFields.length > 0) {
+    return row({ error: `Missing ${missingFields.join(" and ")}` });
   }
 
   // Reject bad tracking input before touching Shopify. A carrier Shopify cannot

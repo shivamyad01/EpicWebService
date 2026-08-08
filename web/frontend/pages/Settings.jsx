@@ -7,7 +7,6 @@ import {
   Checkbox,
   Layout,
   Page,
-  Select,
   SkeletonBodyText,
   Text,
 } from "@shopify/polaris";
@@ -21,16 +20,15 @@ import { safeFetchJson } from "../utils/api.js";
  * This page used to offer around twenty-five controls — store name, timezone,
  * currency, low-stock threshold, desktop notifications, a Google Analytics id, an
  * origin address, an API key field — none of which any code read, saved into a Map
- * that every redeploy emptied. What is left is the two settings a fulfillment run
- * actually consults, and they now persist alongside the sessions.
+ * that every redeploy emptied. What is left is the one preference a fulfillment run
+ * actually consults, and it now persists alongside the sessions.
  *
- * The carrier list is served by the API rather than hardcoded here: Shopify only
- * builds a tracking link when the carrier name matches its own spelling exactly,
- * so the list has one home, in web/config.
+ * There is deliberately no default carrier here. A row whose carrier column is
+ * blank now fails instead, because guessing one meant fulfilling a real order under
+ * a carrier nobody chose and attaching a tracking link that led nowhere.
  */
 export default function Settings() {
   const [settings, setSettings] = useState(null);
-  const [carriers, setCarriers] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
@@ -38,19 +36,13 @@ export default function Settings() {
   useEffect(() => {
     let cancelled = false;
 
-    (async () => {
-      try {
-        const data = await safeFetchJson("/api/settings");
-        if (cancelled) return;
-        setSettings({
-          defaultCarrier: data.defaultCarrier,
-          notifyCustomers: data.notifyCustomers,
-        });
-        setCarriers(data.carriers || []);
-      } catch (err) {
+    safeFetchJson("/api/settings")
+      .then((data) => {
+        if (!cancelled) setSettings({ notifyCustomers: data.notifyCustomers });
+      })
+      .catch((err) => {
         if (!cancelled) setError(err.message);
-      }
-    })();
+      });
 
     return () => {
       cancelled = true;
@@ -73,8 +65,6 @@ export default function Settings() {
         body: JSON.stringify(settings),
       });
 
-      // Show what was stored, not what was sent — the server rejects a carrier
-      // Shopify does not recognise, and the merchant should see that happen.
       if (stored?.settings) setSettings(stored.settings);
       setSaved(true);
     } catch (err) {
@@ -90,7 +80,11 @@ export default function Settings() {
       <Layout>
         {error && (
           <Layout.Section>
-            <Banner title="Couldn't save your settings" tone="critical" onDismiss={() => setError("")}>
+            <Banner
+              title="Couldn't save your settings"
+              tone="critical"
+              onDismiss={() => setError("")}
+            >
               <p>{error}</p>
             </Banner>
           </Layout.Section>
@@ -107,7 +101,7 @@ export default function Settings() {
         <Layout.Section>
           <Card>
             {!settings ? (
-              <SkeletonBodyText lines={5} />
+              <SkeletonBodyText lines={4} />
             ) : (
               <BlockStack gap="500">
                 <BlockStack gap="100">
@@ -115,19 +109,9 @@ export default function Settings() {
                     Fulfillment defaults
                   </Text>
                   <Text as="p" tone="subdued">
-                    Applied to every bulk upload. Anything your sheet specifies wins
-                    over these.
+                    Applied to every bulk upload.
                   </Text>
                 </BlockStack>
-
-                <Select
-                  label="Default carrier"
-                  helpText="Used when a row has no carrier. Shopify only builds a tracking link for carriers it recognises, so the list is limited to those."
-                  options={carriers.map((name) => ({ label: name, value: name }))}
-                  value={settings.defaultCarrier}
-                  onChange={update("defaultCarrier")}
-                  disabled={saving}
-                />
 
                 <Checkbox
                   label="Send shipping notifications by default"
@@ -144,6 +128,21 @@ export default function Settings() {
                 </div>
               </BlockStack>
             )}
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section>
+          <Card>
+            <BlockStack gap="200">
+              <Text as="h2" variant="headingMd">
+                Carrier
+              </Text>
+              <Text as="p" tone="subdued">
+                Every row needs a carrier in its Tracking Company column. There is no
+                default: a blank carrier fails that row rather than shipping the
+                order under one you did not choose.
+              </Text>
+            </BlockStack>
           </Card>
         </Layout.Section>
       </Layout>

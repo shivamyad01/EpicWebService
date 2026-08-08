@@ -1,10 +1,10 @@
 /**
  * Shop Settings
  *
- * Two settings, both of which change what a fulfillment run does. The page used to
- * offer about twenty-five — store name, timezone, currency, low-stock threshold,
- * desktop notifications, a Google Analytics id, a default origin address — none of
- * which anything read. They were also held in a plain Map, so a redeploy erased
+ * One setting, and it changes what a fulfillment run does. The page used to offer
+ * about twenty-five — store name, timezone, currency, low-stock threshold, desktop
+ * notifications, a Google Analytics id, a default origin address, a default
+ * carrier — none of which anything read. They were also held in a plain Map, so a redeploy erased
  * whatever a merchant had entered. Saving input that is then discarded is worse
  * than not collecting it, so the schema is now only what the app acts on.
  *
@@ -15,7 +15,6 @@
 
 import sqlite3 from "sqlite3";
 
-import config from "../config/index.js";
 import { DB_PATH } from "../shopify.js";
 
 const TABLE = "shop_settings";
@@ -23,33 +22,21 @@ const TABLE = "shop_settings";
 /**
  * Defaults for a shop that has never opened the page.
  *
- * `defaultCarrier` is what a sheet row falls back to when its carrier column is
- * blank, and it starts from the app-wide default so behaviour is unchanged until a
- * merchant chooses otherwise. `notifyCustomers` starts false because notification
- * emails cannot be recalled — an opt-in default is the only safe one.
+ * False, because notification emails cannot be recalled. An opt-in default is the
+ * only safe one.
  */
 export const getDefaultSettings = () => ({
-  defaultCarrier: config.defaultTrackingCompany,
   notifyCustomers: false
 });
 
 /**
- * Keep only known keys, coerced to the right type.
- *
- * The settings body arrives from the browser, so an unknown key must not be able
- * to reach storage and an unknown carrier must not reach Shopify — resolveTracking
- * treats a name Shopify does not recognise as a custom carrier, which silently
- * changes how the tracking link is built.
+ * Keep only known keys, coerced to the right type. The body arrives from the
+ * browser, so nothing else reaches storage.
  */
 const sanitize = (input) => {
-  const defaults = getDefaultSettings();
   const incoming = input && typeof input === "object" ? input : {};
 
-  const carrier = String(incoming.defaultCarrier ?? "").trim();
-  const carrierIsKnown = config.shopifyTrackingCompanies.includes(carrier);
-
   return {
-    defaultCarrier: carrierIsKnown ? carrier : defaults.defaultCarrier,
     notifyCustomers: Boolean(incoming.notifyCustomers)
   };
 };
@@ -106,8 +93,8 @@ export const getSettings = async (shop) => {
 /**
  * Replace a shop's settings and return what was stored.
  *
- * A whole-object write rather than a merge: with two fields the page always sends
- * both, and merging would make it impossible to ever clear one.
+ * A whole-object write rather than a merge: the page always sends the full set,
+ * and merging would make it impossible to ever clear a field.
  */
 export const saveSettings = async (shop, settings) => {
   const clean = sanitize(settings);
@@ -122,9 +109,7 @@ export const saveSettings = async (shop, settings) => {
     );
   });
 
-  console.log(
-    `[settings] ${shop}: carrier=${clean.defaultCarrier} notify=${clean.notifyCustomers}`
-  );
+  console.log(`[settings] ${shop}: notify=${clean.notifyCustomers}`);
 
   return clean;
 };
