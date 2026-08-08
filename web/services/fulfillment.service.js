@@ -427,10 +427,16 @@ export const createFulfillment = async (client, fulfillmentOrders, trackingInfo,
  * selects the carrier, builds the tracking URL, and updates shipment_status
  * when the name matches its list character for character.
  */
-export const resolveCarrierName = (trackingCompany) => {
+export const resolveCarrierName = (
+  trackingCompany,
+  defaultCompany = config.defaultTrackingCompany
+) => {
   const value = String(trackingCompany || "").trim();
   if (!value) {
-    return { name: config.defaultTrackingCompany, isKnown: true };
+    // The shop's own default, when it has set one. The app-wide fallback is
+    // India Post, which is the wrong guess for most merchants and used to be
+    // unreachable from the settings page.
+    return { name: defaultCompany || config.defaultTrackingCompany, isKnown: true };
   }
 
   const lower = value.toLowerCase();
@@ -539,8 +545,13 @@ export const applyTrackingNumberToUrl = (rawUrl, trackingNumber) => {
  *
  * A `url` of null therefore means "let Shopify build the link".
  */
-export const resolveTracking = (trackingNumber, trackingCompany, sheetUrl) => {
-  const { name, isKnown } = resolveCarrierName(trackingCompany);
+export const resolveTracking = (
+  trackingNumber,
+  trackingCompany,
+  sheetUrl,
+  defaultCompany
+) => {
+  const { name, isKnown } = resolveCarrierName(trackingCompany, defaultCompany);
 
   const custom = normalizeTrackingUrl(applyTrackingNumberToUrl(sheetUrl, trackingNumber));
   if (custom.error) {
@@ -608,7 +619,13 @@ const trackingInfoPayload = ({ number, company, url }) => ({
  * to be hardcoded true, which meant one bad sheet mailed every customer in it and
  * the notification toggle in Settings had no effect at all.
  */
-export const processOrderFulfillment = async (order, session, client, notifyCustomer = false) => {
+export const processOrderFulfillment = async (
+  order,
+  session,
+  client,
+  notifyCustomer = false,
+  defaultCarrier
+) => {
   const { shop, accessToken } = session;
   
   // Parse order data. orderNumber may be NaN for an ambiguous name like "#1025-A";
@@ -616,7 +633,12 @@ export const processOrderFulfillment = async (order, session, client, notifyCust
   const orderNumberRaw = String(order.OrderNumber || order.Name || "").trim();
   const orderNumber = parseOrderNumber(orderNumberRaw);
   const trackingNumber = (order.TrackingNumber || "").toString().trim();
-  const tracking = resolveTracking(trackingNumber, order.TrackingCompany, order.TrackingUrl);
+  const tracking = resolveTracking(
+    trackingNumber,
+    order.TrackingCompany,
+    order.TrackingUrl,
+    defaultCarrier
+  );
   const trackingCompany = tracking.company;
   let trackingUrl = tracking.url || "";
 

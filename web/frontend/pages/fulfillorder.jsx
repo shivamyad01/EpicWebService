@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Page,
   Layout,
@@ -40,9 +40,11 @@ export default function FulfillOrder() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
   const [currentPage, setCurrentPage] = useState(1);
-  // Off by default. Shipping emails cannot be unsent, so sending them is a choice
-  // the merchant makes per upload rather than something the app does silently.
+  // Off until the shop's saved preference arrives, and off again if it never does.
+  // Shipping emails cannot be unsent, so every failure mode here has to land on
+  // "don't send" — including a settings request that errors.
   const [notifyCustomer, setNotifyCustomer] = useState(false);
+  const [touchedNotify, setTouchedNotify] = useState(false);
   const billing = useBilling();
   const navigate = useNavigate();
   const itemsPerPage = 5;
@@ -55,6 +57,26 @@ export default function FulfillOrder() {
   const trialEndingSoon =
     !blockedByBilling && trialDays !== null && trialDays <= TRIAL_WARNING_DAYS;
   const trialPrice = formatPrice(billing.price);
+
+  // Seed the checkbox from the shop's saved default. Guarded on `touchedNotify`
+  // so a slow response cannot reach back and flip a box the merchant has already
+  // set — with an irreversible action that is the one race worth spending a flag on.
+  useEffect(() => {
+    let cancelled = false;
+
+    safeFetchJson("/api/settings")
+      .then((settings) => {
+        if (!cancelled && !touchedNotify) setNotifyCustomer(Boolean(settings.notifyCustomers));
+      })
+      .catch(() => {
+        // Leave it off. A default nobody can read is not worth guessing at.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDropZoneDrop = (_dropFiles, acceptedFiles) => {
     setFile(acceptedFiles[0]);
@@ -637,7 +659,10 @@ export default function FulfillOrder() {
                 label="Send shipping notification to customers"
                 helpText="Off by default. Notification emails cannot be undone, so check this only when the tracking numbers in your sheet are final."
                 checked={notifyCustomer}
-                onChange={setNotifyCustomer}
+                onChange={(value) => {
+                  setTouchedNotify(true);
+                  setNotifyCustomer(value);
+                }}
                 disabled={uploading}
               />
             </Box>
