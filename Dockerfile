@@ -45,7 +45,10 @@ ENV NODE_ENV=production
 ENV PORT=8081
 EXPOSE 8081
 
+# The port is resolved at runtime, not baked in: config/index.js reads
+# BACKEND_PORT before PORT, so an env file setting BACKEND_PORT moves the server
+# out from under a hardcoded port and the check fails forever.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- http://localhost:8081/api/auth || exit 1
+  CMD wget -qO- "http://localhost:${BACKEND_PORT:-${PORT:-8081}}/health" || exit 1
 
 CMD ["node", "index.js"]

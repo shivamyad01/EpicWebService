@@ -17,6 +17,17 @@ import { orderRoutes, settingsRoutes, billingRoutes } from "./routes/index.js";
 const app = express();
 
 // =============================================================================
+// HEALTH CHECK (Public)
+// =============================================================================
+// Registered first, and deliberately not under /api/*, so it escapes both the
+// session check and the "/*" frontend handler below — the latter answers 400 to
+// anything without a ?shop=, which is why the container healthcheck used to point
+// at /api/auth and never got a 200 out of it.
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", port: config.port });
+});
+
+// =============================================================================
 // AUTHENTICATION ROUTES (Public)
 // =============================================================================
 app.get(shopify.config.auth.path, shopify.auth.begin());
