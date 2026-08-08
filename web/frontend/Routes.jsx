@@ -1,4 +1,7 @@
+import { Suspense, lazy } from "react";
 import { Routes as ReactRouterRoutes, Route } from "react-router-dom";
+
+import { PageSkeleton } from "./components";
 
 /**
  * File-based routing.
@@ -22,11 +25,15 @@ export default function Routes({ pages }) {
 
   const NotFound = routes.find(({ path }) => path === "/notFound").component;
 
+  // One Suspense around the whole switch rather than one per route: only a single
+  // route renders at a time, so the boundary can only ever be waiting on one chunk.
   return (
-    <ReactRouterRoutes>
-      {routeComponents}
-      <Route path="*" element={<NotFound />} />
-    </ReactRouterRoutes>
+    <Suspense fallback={<PageSkeleton />}>
+      <ReactRouterRoutes>
+        {routeComponents}
+        <Route path="*" element={<NotFound />} />
+      </ReactRouterRoutes>
+    </Suspense>
   );
 }
 
@@ -54,13 +61,13 @@ function useRoutes(pages) {
         path = path.substring(0, path.length - 1);
       }
 
-      if (!pages[key].default) {
-        console.warn(`${key} doesn't export a default React component`);
-      }
-
+      // pages[key] is now an import function, not the module: the glob in App.jsx
+      // is lazy so each page becomes its own chunk instead of being welded into the
+      // entry bundle. Whether it has a default export can only be found out once it
+      // has loaded, so React.lazy raises that rather than the old console warning.
       return {
         path,
-        component: pages[key].default,
+        component: lazy(pages[key]),
       };
     })
     .filter((route) => route.component);

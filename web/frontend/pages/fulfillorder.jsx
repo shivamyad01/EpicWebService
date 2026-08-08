@@ -20,7 +20,6 @@ import {
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useNavigate } from "react-router-dom";
-import * as XLSX from "xlsx";
 import { safeFetchJson, safeFetchBlob } from "../utils/api.js";
 import {
   useBilling,
@@ -112,7 +111,12 @@ export default function FulfillOrder() {
     }
   };
 
-  const handleDownloadSample = () => {
+  const handleDownloadSample = async () => {
+    // xlsx is ~300KB and this is the only thing on the page that needs it, so it
+    // is fetched on the click rather than bundled into the page every merchant
+    // loads to upload a file.
+    const XLSX = await import("xlsx");
+
     // Carriers that work with TrackingUrl left blank, spelled exactly as the
     // server expects. Keep in sync with the union of shopifyTrackingCompanies
     // and trackingUrlOverrides in the server config.

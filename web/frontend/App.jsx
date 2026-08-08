@@ -3,21 +3,24 @@ import { useTranslation } from "react-i18next";
 import { NavMenu } from "@shopify/app-bridge-react";
 import Routes from "./Routes";
 
-import { QueryProvider, PolarisProvider } from "./components";
+import { QueryProvider, PolarisProvider, ErrorBoundary } from "./components";
 
 
 export default function App() {
   // Any .tsx or .jsx files in /pages will become a route
   // See documentation for <Routes /> for more info
-  const pages = import.meta.glob("./pages/**/!(*.test.[jt]sx)*.([jt]sx)", {
-    eager: true,
-  });
+  //
+  // Deliberately not eager. Eager loading pulled every page — including the 866-line
+  // fulfill screen and the whole xlsx library it imports — into the entry bundle, so
+  // opening the app downloaded and parsed all of them before rendering any one.
+  const pages = import.meta.glob("./pages/**/!(*.test.[jt]sx)*.([jt]sx)");
   const { t } = useTranslation();
 
   return (
     <PolarisProvider>
       <BrowserRouter>
         <QueryProvider>
+          <ErrorBoundary>
           <NavMenu>
             <a href="/" rel="home" />
             <a href="/fulfillorder">{t("NavigationMenu.fulfillOrder")}</a>
@@ -28,7 +31,8 @@ export default function App() {
             <a href="/feedback">{t("NavigationMenu.feedback")}</a>
             <a href="/settings">Settings</a>
           </NavMenu>
-          <Routes pages={pages} />
+            <Routes pages={pages} />
+          </ErrorBoundary>
         </QueryProvider>
       </BrowserRouter>
     </PolarisProvider>
