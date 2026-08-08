@@ -1,5 +1,5 @@
 # ── Stage 1: Build frontend ──────────────────────────────────────────────────
-FROM node:18-alpine AS frontend-build
+FROM node:22-alpine AS frontend-build
 
 ARG SHOPIFY_API_KEY
 ENV SHOPIFY_API_KEY=$SHOPIFY_API_KEY
@@ -12,7 +12,7 @@ COPY web/frontend/ ./
 RUN npm run build
 
 # ── Stage 2: Production image ────────────────────────────────────────────────
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 # Security: run as non-root
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
@@ -48,7 +48,11 @@ EXPOSE 8081
 # The port is resolved at runtime, not baked in: config/index.js reads
 # BACKEND_PORT before PORT, so an env file setting BACKEND_PORT moves the server
 # out from under a hardcoded port and the check fails forever.
+#
+# 127.0.0.1 rather than localhost: inside the container localhost resolves to ::1
+# first, and the server binds 0.0.0.0, which is IPv4 only — so the check refuses to
+# connect even when the app is perfectly healthy.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD wget -qO- "http://localhost:${BACKEND_PORT:-${PORT:-8081}}/health" || exit 1
+  CMD wget -qO- "http://127.0.0.1:${BACKEND_PORT:-${PORT:-8081}}/health" || exit 1
 
 CMD ["node", "index.js"]

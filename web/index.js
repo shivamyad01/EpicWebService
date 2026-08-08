@@ -13,14 +13,15 @@ import shopify from "./shopify.js";
 import WebhookHandlers from "./webhooks/index.js";
 import config from "./config/index.js";
 import { orderRoutes, settingsRoutes, billingRoutes } from "./routes/index.js";
+import { refreshOfflineToken, upgradeTokenAfterOAuth } from "./middleware/token.middleware.js";
 
 const app = express();
 
 // =============================================================================
 // HEALTH CHECK (Public)
 // =============================================================================
-// Registered first, and deliberately not under /api/*, so it escapes both the
-// session check and the "/*" frontend handler below — the latter answers 400 to
+// Registered first, and deliberately not under /api, so it escapes both the session
+// check and the catch-all frontend handler below — the latter answers 400 to
 // anything without a ?shop=, which is why the container healthcheck used to point
 // at /api/auth and never got a 200 out of it.
 app.get("/health", (req, res) => {
@@ -34,13 +35,15 @@ app.get(shopify.config.auth.path, shopify.auth.begin());
 app.get(
   shopify.config.auth.callbackPath,
   shopify.auth.callback(),
+  // OAuth still hands back a non-expiring token; swap it before the merchant lands.
+  upgradeTokenAfterOAuth,
   shopify.redirectToShopifyOrAppRoot()
 );
 
 // =============================================================================
 // WEBHOOKS (Public)
 // =============================================================================
-// Registered before the /api/* session check below, so Express matches this route
+// Registered before the /api session check below, so Express matches this route
 // first. Webhooks carry an HMAC instead of a session and would be rejected by it.
 // It must also stay ahead of express.json(), which would consume the raw body the
 // HMAC is computed over.
@@ -52,7 +55,9 @@ app.post(
 // =============================================================================
 // API MIDDLEWARE
 // =============================================================================
-app.use("/api/*", shopify.validateAuthenticatedSession());
+// Express 5 matches all subpaths from a plain prefix, so the "/*" suffix these
+// used to carry is both unnecessary and no longer valid syntax.
+app.use("/api", refreshOfflineToken, shopify.validateAuthenticatedSession());
 app.use(express.json());
 
 // =============================================================================
@@ -71,7 +76,7 @@ app.use(serveStatic(config.staticPath, { index: false }));
 // =============================================================================
 // FRONTEND SERVING
 // =============================================================================
-app.use("/*", async (req, res) => {
+app.use("/", async (req, res) => {
   const shop = req.query.shop || res.locals.shopify?.session?.shop;
   if (!shop) {
     return res.status(400).send("Missing shop parameter");
