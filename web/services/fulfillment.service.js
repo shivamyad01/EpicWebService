@@ -25,24 +25,42 @@ const RETRY_DELAY = 1000; // ms
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Retry wrapper for API calls
+ * HTTP status behind a failed Admin API call, whichever client raised it.
+ *
+ * axios puts it on response.status; shopify-api's HttpResponseError family puts it
+ * on response.code. A GraphqlQueryError carries the raw 200 response instead — it
+ * is a GraphQL-level failure, so there is no error status to report.
  */
-const withRetry = async (fn, retries = MAX_RETRIES) => {
+const httpStatusOf = (err) => err?.response?.status ?? err?.response?.code ?? null;
+
+/**
+ * Retry wrapper for API calls.
+ *
+ * `retryServerErrors` must be false for anything that creates something. A 429 is
+ * safe to repeat — Shopify refused the call, so nothing happened. A 500 or a reset
+ * connection is not: the mutation may well have been applied before the response
+ * was lost, and repeating it fulfils the order twice and emails the customer twice.
+ */
+const withRetry = async (fn, retries = MAX_RETRIES, { retryServerErrors = true } = {}) => {
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       return await fn();
     } catch (error) {
-      const isRetryable = error.response?.status === 429 || 
-                          error.response?.status >= 500 ||
-                          error.code === 'ECONNRESET';
-      
+      // shopify-api's client errors report the status as response.code, axios uses
+      // response.status. Reading only one of them left every throttle and 5xx from
+      // the GraphQL calls unretried once they moved to the new client.
+      const status = httpStatusOf(error);
+      const isRetryable = status === 429 ||
+                          (retryServerErrors && status >= 500) ||
+                          (retryServerErrors && error.code === 'ECONNRESET');
+
       if (attempt === retries || !isRetryable) {
         throw error;
       }
-      
+
       // Exponential backoff for rate limits
-      const delay = error.response?.status === 429 
-        ? RETRY_DELAY * Math.pow(2, attempt) 
+      const delay = status === 429
+        ? RETRY_DELAY * Math.pow(2, attempt)
         : RETRY_DELAY;
       
       console.warn(`Attempt ${attempt} failed, retrying in ${delay}ms...`);
@@ -239,8 +257,41 @@ export const cleanupTempFile = (filePath) => {
 };
 
 /**
+ * Turn a failed Admin API call into a message the merchant can act on.
+ *
+ * "Order not found" is a statement about the shop's orders, and it sends a
+ * merchant to check their spreadsheet. A rejected token or a rate limit is a
+ * statement about this app, and needs a different action entirely — so the two
+ * must never share a message.
+ */
+const describeApiFailure = (what, err) => {
+  const status = httpStatusOf(err);
+  const detail = err?.message || "unknown error";
+
+  if (status === 401 || status === 403) {
+    return `${what} failed: Shopify rejected this app's access token (HTTP ${status}). Open the app again from your Shopify admin to reconnect it, then re-upload these rows.`;
+  }
+
+  if (status === 429) {
+    return `${what} failed: Shopify's rate limit was hit (HTTP 429) and did not clear after ${MAX_RETRIES} attempts. Wait a minute, then re-upload these rows.`;
+  }
+
+  // A GraphQL-level failure comes back on a 200, so only a real error status is
+  // worth putting in front of the merchant
+  return status >= 400
+    ? `${what} failed: Shopify returned HTTP ${status} — ${detail}`
+    : `${what} failed: ${detail}`;
+};
+
+/**
  * Search for an order using GraphQL, then fetch full details via REST.
  * Tries multiple search strategies to reliably locate orders by name.
+ *
+ * Throws when Shopify could not be asked at all. A query that fails is not a
+ * query that found nothing: every error here used to be swallowed, so an expired
+ * token reached the merchant as "Order not found" on every single row — the exact
+ * same report as a sheet whose order numbers are genuinely not in the shop, with
+ * nothing in the UI to tell the two apart.
  */
 export const fetchOrder = async (shop, accessToken, orderName, client) => {
   // Strip the merchant's "#" before rebuilding it. Prefixing unconditionally
@@ -262,19 +313,23 @@ export const fetchOrder = async (shop, accessToken, orderName, client) => {
 
   let edges = [];
 
+  // Whether Shopify answered at least one of the queries. Only then does an empty
+  // result set mean the order is not there.
+  let searchAnswered = false;
+  let lastSearchError = null;
+
   for (const q of searchQueries) {
     try {
       console.log(`[fetchOrder] Trying GraphQL search: "${q}"`);
       const searchResult = await withRetry(async () => {
-        return await client.query({
-          data: {
-            query: SEARCH_ORDER_BY_NAME,
-            variables: { query: q }
-          }
+        return await client.request(SEARCH_ORDER_BY_NAME, {
+          variables: { query: q }
         });
       });
 
-      const resultEdges = searchResult.body?.data?.orders?.edges || [];
+      searchAnswered = true;
+
+      const resultEdges = searchResult.data?.orders?.edges || [];
       console.log(`[fetchOrder] Query "${q}" returned ${resultEdges.length} result(s):`,
         resultEdges.map(e => `${e.node.name} (ID: ${e.node.legacyResourceId})`));
 
@@ -283,8 +338,14 @@ export const fetchOrder = async (shop, accessToken, orderName, client) => {
         break; // Found results, stop trying
       }
     } catch (err) {
+      lastSearchError = err;
       console.warn(`[fetchOrder] Search query "${q}" failed:`, err.message);
     }
+  }
+
+  // Not one query got through: this row was never actually looked up
+  if (!searchAnswered) {
+    throw new Error(describeApiFailure("Order search", lastSearchError));
   }
 
   if (edges.length === 0) {
@@ -294,6 +355,7 @@ export const fetchOrder = async (shop, accessToken, orderName, client) => {
 
   // Fetch the full order details via REST API using the discovered order IDs
   const orders = [];
+  let lastDetailError = null;
   for (const edge of edges) {
     const orderId = edge.node.legacyResourceId;
     try {
@@ -311,8 +373,16 @@ export const fetchOrder = async (shop, accessToken, orderName, client) => {
         orders.push(restResponse.data.order);
       }
     } catch (e) {
+      lastDetailError = e;
       console.warn(`[fetchOrder] Failed to fetch order ${orderId}:`, e.message);
     }
+  }
+
+  // The search found the order but its details could not be read. Returning an
+  // empty list here would report "Order not found" for an order Shopify had just
+  // named back to us.
+  if (orders.length === 0 && lastDetailError) {
+    throw new Error(describeApiFailure("Order lookup", lastDetailError));
   }
 
   return orders;
@@ -350,14 +420,11 @@ export const getFulfillmentOrders = async (client, orderId) => {
   const gid = `gid://shopify/Order/${orderId}`;
 
   return await withRetry(async () => {
-    const response = await client.query({
-      data: {
-        query: GET_FULFILLMENT_ORDERS,
-        variables: { id: gid }
-      }
+    const response = await client.request(GET_FULFILLMENT_ORDERS, {
+      variables: { id: gid }
     });
 
-    const connection = response.body?.data?.order?.fulfillmentOrders;
+    const connection = response.data?.order?.fulfillmentOrders;
 
     if (connection?.pageInfo?.hasNextPage) {
       throw new Error(
@@ -398,10 +465,12 @@ export const createFulfillment = async (client, fulfillmentOrders, trackingInfo,
     }))
     .filter((target) => target.fulfillmentOrderLineItems.length > 0);
 
+  // Throttling is retried; a lost response is not. See withRetry — repeating this
+  // mutation is how an order gets fulfilled twice.
   return await withRetry(async () => {
-    const response = await client.query({
-      data: {
-        query: CREATE_FULFILLMENT,
+    let response;
+    try {
+      response = await client.request(CREATE_FULFILLMENT, {
         variables: {
           fulfillment: {
             lineItemsByFulfillmentOrder: targets,
@@ -409,19 +478,26 @@ export const createFulfillment = async (client, fulfillmentOrders, trackingInfo,
             notifyCustomer
           }
         }
+      });
+    } catch (err) {
+      // Shopify never said whether it applied this. The merchant has to look before
+      // re-uploading the row, so say so rather than leaving them a bare 500.
+      const status = httpStatusOf(err);
+      if (status >= 500 || err.code === 'ECONNRESET') {
+        throw new Error(
+          `Shopify did not confirm this fulfillment (${status || err.code}) — check the order in your Shopify admin before re-uploading this row, it may already be fulfilled`
+        );
       }
-    });
-
-    // Top-level GraphQL errors (a malformed tracking URL rejected by the URL
-    // scalar, for example) never reach userErrors. Surface them instead of
-    // returning an empty result that reads as "no response".
-    const queryErrors = response.body?.errors;
-    if (queryErrors?.length) {
-      throw new Error(queryErrors.map(e => e.message).join("; "));
+      throw err;
     }
 
-    return response.body?.data?.fulfillmentCreate;
-  });
+    // Top-level GraphQL errors (a malformed tracking URL rejected by the URL
+    // scalar, for example) never reach userErrors. `request` raises those itself,
+    // as a GraphqlQueryError carrying the first message, and the row reports it —
+    // so there is nothing to check for here. Under the old `query` method they
+    // arrived as response.body.errors and had to be thrown by hand.
+    return response.data?.fulfillmentCreate;
+  }, MAX_RETRIES, { retryServerErrors: false });
 };
 
 /**
