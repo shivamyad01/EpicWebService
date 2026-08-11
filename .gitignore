@@ -1,6 +1,9 @@
 # Environment Configuration
 .env
 .env.*
+# ...but the template carries no secrets, and is the only record of what a
+# deployment needs. Without the exception the rule above hides it.
+!.env.example
 
 # Dependency directory
 node_modules
@@ -24,8 +27,12 @@ dist/
 # extensions build output
 extensions/*/build
 
-# Node library SQLite database
-web/database.sqlite
+# Node library SQLite database — the session store, which holds one Shopify
+# access token per shop. Matched anywhere, not just under web/: the path depends
+# on the working directory the server was started from, and a root-level copy
+# once slipped past a `web/`-anchored rule and was pushed to a public repo.
+database.sqlite
+*.sqlite
 
 # Fulfillment reports the app writes at runtime, one file per shop. Real order
 # and tracking data, rewritten on every upload — it belongs on the server's disk,

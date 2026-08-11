@@ -41,6 +41,17 @@ const retryWithNewToken = (res, reason) => {
 };
 
 /**
+ * One exchange per shop at a time.
+ *
+ * Opening the app fires several API calls at once — settings and the billing
+ * check at least. On a shop with no stored token they would each find nothing,
+ * and each start its own exchange: the same round trip several times over, and
+ * several writes racing for the same session row. The same guard token.service
+ * keeps around refreshes, for the same reason.
+ */
+const inFlight = new Map();
+
+/**
  * Trade a session token for an offline access token and store it.
  *
  * `expiring: true` asks for a token that comes with a refresh token. The OAuth
@@ -48,18 +59,26 @@ const retryWithNewToken = (res, reason) => {
  * which is why upgradeTokenAfterOAuth exists — but token exchange takes it
  * directly, so every shop lands on an expiring token from its first request.
  */
-const exchangeForOfflineToken = async (shop, sessionToken) => {
-  const { session } = await shopify.api.auth.tokenExchange({
-    shop,
-    sessionToken,
-    requestedTokenType: RequestedTokenType.OfflineAccessToken,
-    expiring: true,
-  });
+const exchangeForOfflineToken = (shop, sessionToken) => {
+  const pending = inFlight.get(shop);
+  if (pending) return pending;
 
-  await shopify.config.sessionStorage.storeSession(session);
-  console.log(`[auth] stored an offline session for ${shop} by token exchange`);
+  const work = (async () => {
+    const { session } = await shopify.api.auth.tokenExchange({
+      shop,
+      sessionToken,
+      requestedTokenType: RequestedTokenType.OfflineAccessToken,
+      expiring: true,
+    });
 
-  return session;
+    await shopify.config.sessionStorage.storeSession(session);
+    console.log(`[auth] stored an offline session for ${shop} by token exchange`);
+
+    return session;
+  })().finally(() => inFlight.delete(shop));
+
+  inFlight.set(shop, work);
+  return work;
 };
 
 /**
@@ -101,11 +120,21 @@ export const authenticateApiRequest = async (req, res, next) => {
       }
     }
 
-    // Exchange when there is nothing stored, when what is stored has expired
-    // past rescue, or when its grant no longer covers the scopes the app asks
-    // for. isScopeChanged tests inclusion, so a session granted more than the
-    // app now needs stays valid.
-    if (!session?.isActive(shopify.api.config.scopes)) {
+    // Exchange only when there is nothing usable stored: no token, or one that
+    // has expired past what rotation could rescue.
+    //
+    // isActive() is called without scopes on purpose. Passing config.scopes
+    // compares the granted token against the SCOPES environment variable, which
+    // under managed install is not the source of truth for anything — Shopify
+    // grants what shopify.app.toml declares, and the env var drifts from it the
+    // moment the two are deployed apart. That drift made every single request
+    // fail the check and mint a new token, which is the one thing Shopify's
+    // token exchange guidance says not to do.
+    //
+    // A genuine scope change still resolves on its own: managed install re-grants
+    // at update time, and the next exchange after this token expires picks the
+    // new grant up.
+    if (!session?.isActive()) {
       session = await exchangeForOfflineToken(shop, sessionToken);
     }
 

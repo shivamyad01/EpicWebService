@@ -4,6 +4,7 @@
  */
 
 import shopify from "../shopify.js";
+import config from "../config/index.js";
 import {
   parseExcelFile,
   cleanupTempFile,
@@ -13,9 +14,11 @@ import {
   generateFulfillmentReport
 } from "../services/fulfillment.service.js";
 
-// Batch processing configuration
-const BATCH_SIZE = 10; // Process orders in batches
-const BATCH_DELAY = 500; // ms delay between batches
+// Batch processing configuration. Taken from config rather than declared again
+// here — config.fulfillment already carries these numbers, and a second copy is
+// only ever discovered when someone tunes one of them and nothing changes.
+const BATCH_SIZE = config.fulfillment.batchSize;
+const BATCH_DELAY = config.fulfillment.batchDelayMs;
 
 /**
  * Sleep utility
@@ -75,13 +78,15 @@ export const bulkFulfillOrders = async (req, res) => {
       });
     }
     
-    // Limit maximum orders per request
-    const MAX_ORDERS = 500;
-    if (orders.length > MAX_ORDERS) {
+    // Limit maximum orders per request. Read from config rather than repeated
+    // here: config.fulfillment already declares the number, and two copies of a
+    // limit is one copy too many for the day someone raises it in one place.
+    const maxOrders = config.fulfillment.maxOrdersPerRequest;
+    if (orders.length > maxOrders) {
       cleanupTempFile(req.file.path);
-      return res.status(400).json({ 
-        error: `Too many orders. Maximum ${MAX_ORDERS} orders per file.`,
-        count: orders.length 
+      return res.status(400).json({
+        error: `Too many orders. Maximum ${maxOrders} orders per file.`,
+        count: orders.length
       });
     }
     
