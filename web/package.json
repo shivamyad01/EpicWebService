@@ -17,7 +17,6 @@
     "@shopify/shopify-app-express": "^7.0.1",
     "@shopify/shopify-app-session-storage-sqlite": "^6.0.1",
     "axios": "^1.9.0",
-    "compression": "^1.7.4",
     "cross-env": "^7.0.3",
     "exceljs": "^4.4.0",
     "express": "^5.1.0",

@@ -50,9 +50,6 @@ export default defineConfig({
   resolve: {
     preserveSymlinks: true,
   },
-  optimizeDeps: {
-    include: ["xlsx/xlsx.mjs"],
-  },
   build: {
     // The server reads this to work out which page chunk the incoming URL needs,
     // and preloads it alongside the entry instead of leaving the browser to

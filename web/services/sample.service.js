@@ -15,7 +15,7 @@
 
 import ExcelJS from "exceljs";
 
-import config from "../config/index.js";
+import { carriersNeedingNoUrl } from "./fulfillment.service.js";
 
 /** Chosen when the carrier is not one Shopify knows. Requires a TrackingUrl. */
 const OTHER = "Other";
@@ -35,23 +35,6 @@ const VALIDATED_ROWS = 2000;
 const CARRIER_BLOCK_START = 5;
 
 /**
- * Every carrier the app can resolve a tracking link for, from the same config
- * the fulfillment service matches names against.
- *
- * Both lists matter: shopifyTrackingCompanies are the names Shopify itself
- * recognises, and trackingUrlOverrides adds the ones the app supplies a link for
- * (Trackon is only in the second).
- */
-const carrierNames = () => {
-  const names = new Set([
-    ...config.shopifyTrackingCompanies,
-    ...Object.keys(config.trackingUrlOverrides || {}),
-  ]);
-
-  return [...names].sort((a, b) => a.localeCompare(b));
-};
-
-/**
  * @returns {Promise<Buffer>} the .xlsx file
  */
 export const generateSampleWorkbook = async () => {
@@ -59,7 +42,7 @@ export const generateSampleWorkbook = async () => {
   workbook.creator = "Epic Fulfill";
   workbook.created = new Date();
 
-  const carriers = carrierNames();
+  const carriers = carriersNeedingNoUrl();
   const options = [...carriers, OTHER];
 
   // ── Orders ────────────────────────────────────────────────────────────────

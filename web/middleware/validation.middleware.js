@@ -23,37 +23,7 @@ export const validateSettings = (req, res, next) => {
   next();
 };
 
-/**
- * Validate order data from Excel
- */
-export const validateOrderData = (order) => {
-  const errors = [];
-  
-  const orderNumber = String(order.OrderNumber || order.Name || "").trim();
-  const trackingNumber = (order.TrackingNumber || "").toString().trim();
-  
-  if (!orderNumber) {
-    errors.push("Missing Order Number");
-  }
-  
-  if (!trackingNumber) {
-    errors.push("Missing Tracking Number");
-  }
-  
-  return {
-    isValid: errors.length === 0,
-    errors,
-    data: {
-      orderNumber,
-      trackingNumber,
-      trackingCompany: (order.TrackingCompany || "India Post").trim(),
-      trackingUrl: order.TrackingUrl || null
-    }
-  };
-};
-
 export default {
   validateFileUpload,
-  validateSettings,
-  validateOrderData
+  validateSettings
 };

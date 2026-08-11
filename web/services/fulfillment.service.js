@@ -14,10 +14,12 @@ import config from "../config/index.js";
 // In production, consider using Redis or database
 const fulfillmentSummaries = new Map();
 
-// Rate limiting configuration
-const RATE_LIMIT_DELAY = 250; // ms between API calls
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000; // ms
+// Rate limiting configuration. Read from config rather than declared again here:
+// config.fulfillment already carries these, and a second copy is only ever
+// noticed when someone tunes one of them and nothing changes.
+const RATE_LIMIT_DELAY = config.fulfillment.rateLimitDelayMs;
+const MAX_RETRIES = config.fulfillment.maxRetries;
+const RETRY_DELAY = config.fulfillment.retryDelayMs;
 
 /**
  * Sleep utility for rate limiting

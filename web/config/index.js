@@ -13,12 +13,6 @@ export const config = {
   upload: {
     dest: "uploads/",
     maxFileSize: 10 * 1024 * 1024, // 10MB for larger files
-    allowedMimeTypes: [
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "application/vnd.ms-excel",
-      "text/csv",
-      "application/csv"
-    ],
     allowedExtensions: [".xlsx", ".xls", ".csv"]
   },
   
