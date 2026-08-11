@@ -9,7 +9,7 @@ import { getSubscriptionState } from "../services/billing.service.js";
 /**
  * Require an active subscription for this route.
  *
- * Runs after shopify.validateAuthenticatedSession(), so the session is already on
+ * Runs after authenticateApiRequest, so the session is already on
  * res.locals. Responds 402 with the pricing page URL when there is no plan, which
  * is what lets the frontend tell "you need to subscribe" apart from a genuine
  * failure — a 403 would look identical to an auth problem.

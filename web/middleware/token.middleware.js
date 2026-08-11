@@ -4,52 +4,14 @@
  * Keeps the stored offline token rotated so that expiring tokens are invisible to
  * the rest of the app. See services/token.service.js for why the app has to do this
  * itself rather than let @shopify/shopify-app-express handle it.
+ *
+ * The request-path rotation that used to live here is now part of
+ * middleware/auth.middleware.js, which already holds the loaded session and can
+ * mint a new token outright when rotation is not enough. Two middlewares loading
+ * the same session to do the same job was one more than it needed.
  */
 
-import shopify from "../shopify.js";
 import { ensureValidSession } from "../services/token.service.js";
-
-/**
- * Rotate the shop's offline token before the session check reads it.
- *
- * Order matters: validateAuthenticatedSession calls session.isActive(), which is
- * false for an expired token and redirects the merchant into OAuth. With 60-minute
- * tokens that would bounce every merchant through a re-install screen once an hour,
- * so the refresh has to land before it, not after.
- *
- * The refreshed session is written to storage, and validateAuthenticatedSession
- * re-reads from storage, so nothing needs to be handed across on res.locals.
- *
- * Failure is deliberately not fatal. A refresh token past its 90 days cannot be
- * rescued here, and the correct recovery — send the merchant through OAuth — is
- * exactly what validateAuthenticatedSession does with the stale session on its own.
- */
-export const refreshOfflineToken = async (req, res, next) => {
-  // An embedded app's API calls always carry the App Bridge session token, and
-  // getCurrentId logs an error of its own when it is missing. Without this guard
-  // every unauthenticated probe would produce that error twice — once here and
-  // once from the session check that follows — for a request neither can rescue.
-  if (!req.headers.authorization) return next();
-
-  try {
-    const sessionId = await shopify.api.session.getCurrentId({
-      isOnline: shopify.config.useOnlineTokens,
-      rawRequest: req,
-      rawResponse: res
-    });
-
-    if (sessionId) {
-      const session = await shopify.config.sessionStorage.loadSession(sessionId);
-      if (session) await ensureValidSession(session);
-    }
-  } catch (err) {
-    // Includes the ordinary case of a request carrying no usable session token at
-    // all, which is not an error here — it is the next middleware's decision.
-    console.warn(`[token] could not rotate before session check: ${err.message}`);
-  }
-
-  return next();
-};
 
 /**
  * Convert the token OAuth just minted into an expiring one.
@@ -83,4 +45,4 @@ export const upgradeTokenAfterOAuth = async (req, res, next) => {
   return next();
 };
 
-export default { refreshOfflineToken, upgradeTokenAfterOAuth };
+export default { upgradeTokenAfterOAuth };

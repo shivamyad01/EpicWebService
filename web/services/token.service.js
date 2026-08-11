@@ -12,7 +12,7 @@
  * primitives @shopify/shopify-api 13 does ship — `auth.migrateToExpiringToken` and
  * `auth.refreshToken`. When the flag ships, this module is what it replaces.
  *
- * Every path into the Admin API goes through validateAuthenticatedSession, so the
+ * Every path into the Admin API goes through authenticateApiRequest, so the
  * middleware that calls this (see middleware/token.middleware.js) is enough to keep
  * the whole app on rotated tokens.
  */
@@ -95,10 +95,10 @@ const refresh = async (session) => {
  * Return a session whose access token is safe to use right now.
  *
  * Throws if the token could not be rotated. Callers on the request path swallow
- * that and let validateAuthenticatedSession run: a session it cannot use sends the
- * merchant through OAuth, which mints a fresh token and is the correct recovery for
- * both failures that get this far — a refresh token past its 90 days, and an app
- * whose access was revoked.
+ * that: authenticateApiRequest then finds the session inactive and mints a new
+ * token by exchange, which is the right recovery for both failures that get this
+ * far — a refresh token past its 90 days, and an app whose access was revoked.
+ * Neither used to be recoverable without sending the merchant back through OAuth.
  */
 export const ensureValidSession = async (session) => {
   // Online tokens carry their own expiry and the library already re-auths on it.

@@ -13,7 +13,8 @@ import shopify from "./shopify.js";
 import WebhookHandlers from "./webhooks/index.js";
 import config from "./config/index.js";
 import { orderRoutes, settingsRoutes, billingRoutes } from "./routes/index.js";
-import { refreshOfflineToken, upgradeTokenAfterOAuth } from "./middleware/token.middleware.js";
+import { upgradeTokenAfterOAuth } from "./middleware/token.middleware.js";
+import { authenticateApiRequest, ensureEmbedded } from "./middleware/auth.middleware.js";
 import { preloadTagsFor } from "./utils/assetPreload.js";
 
 const app = express();
@@ -58,7 +59,12 @@ app.post(
 // =============================================================================
 // Express 5 matches all subpaths from a plain prefix, so the "/*" suffix these
 // used to carry is both unnecessary and no longer valid syntax.
-app.use("/api", refreshOfflineToken, shopify.validateAuthenticatedSession());
+//
+// authenticateApiRequest replaces validateAuthenticatedSession: it mints the
+// shop's access token by token exchange instead of redirecting into an OAuth
+// flow that browsers can no longer complete inside the admin iframe. See
+// middleware/auth.middleware.js.
+app.use("/api", authenticateApiRequest);
 app.use(express.json());
 
 // =============================================================================
@@ -127,23 +133,16 @@ const documentFor = (pathname) => {
   return preloads ? html.replace("</head>", `  ${preloads}\n  </head>`) : html;
 };
 
-app.use("/", async (req, res) => {
-  const shop = req.query.shop || res.locals.shopify?.session?.shop;
-  if (!shop) {
-    return res.status(400).send("Missing shop parameter");
-  }
-
-  return shopify.ensureInstalledOnShop()(req, res, () => {
-    res
-      .status(200)
-      .set("Content-Type", "text/html")
-      // The document names the fingerprinted assets, so it is the one thing that
-      // must never be served from cache — a stale copy would point at bundles
-      // that no longer exist. no-cache still allows a 304, so it costs one small
-      // conditional request rather than a download.
-      .set("Cache-Control", "no-cache")
-      .send(documentFor(req.path));
-  });
+app.use("/", ensureEmbedded, async (req, res) => {
+  res
+    .status(200)
+    .set("Content-Type", "text/html")
+    // The document names the fingerprinted assets, so it is the one thing that
+    // must never be served from cache — a stale copy would point at bundles
+    // that no longer exist. no-cache still allows a 304, so it costs one small
+    // conditional request rather than a download.
+    .set("Cache-Control", "no-cache")
+    .send(documentFor(req.path));
 });
 
 // =============================================================================
