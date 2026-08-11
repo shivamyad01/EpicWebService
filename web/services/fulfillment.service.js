@@ -685,11 +685,19 @@ export const resolveTracking = (trackingNumber, trackingCompany, sheetUrl) => {
   // shop: company "Trackon" with number "TC123456789IN" and no URL came back
   // as https://www.indiapost.gov.in/. The customer would be sent to the wrong
   // carrier's site, which is worse than refusing the row.
+  // "Other" is the app's own dropdown entry for "not on the list", so telling a
+  // merchant that Shopify does not recognise it reads as a fault in their sheet
+  // when they picked exactly what they were offered. The fix is the same either
+  // way — a TrackingUrl — but only one of these two sentences explains why.
+  const isOtherPlaceholder = name.trim().toLowerCase() === "other";
+
   return {
     company: name,
     url: null,
     isKnown,
-    error: `Shopify does not recognize the carrier "${name}" — use a name from the Carriers sheet, or fill the TrackingUrl column for this row`
+    error: isOtherPlaceholder
+      ? `"Other" needs a TrackingUrl — put the carrier's tracking link in that column, or pick the carrier by name if it is on the Carriers sheet`
+      : `Shopify does not recognize the carrier "${name}" — use a name from the Carriers sheet, or fill the TrackingUrl column for this row`
   };
 };
 
