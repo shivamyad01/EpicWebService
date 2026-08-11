@@ -27,6 +27,11 @@ extensions/*/build
 # Node library SQLite database
 web/database.sqlite
 
+# Fulfillment reports the app writes at runtime, one file per shop. Real order
+# and tracking data, rewritten on every upload — it belongs on the server's disk,
+# not in the repo. The directory is created on demand.
+web/reports/
+
 # Ignore shopify files created during app dev
 .shopify/*
 .shopify.lock

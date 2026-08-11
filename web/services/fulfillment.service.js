@@ -116,6 +116,31 @@ export const setFulfillmentSummary = (shop, summary) => {
 };
 
 /**
+ * Erase everything the app has stored for a shop.
+ *
+ * Called from the shop/redact webhook, which Shopify sends 48 hours after an
+ * uninstall and which the app is required to act on. The report is the only shop
+ * data kept outside the session store — sessions are deleted by the SDK's own
+ * app/uninstalled handler.
+ *
+ * @returns {boolean} whether anything was actually there to delete
+ */
+export const deleteFulfillmentSummary = (shop) => {
+  fulfillmentSummaries.delete(shop);
+
+  try {
+    fs.unlinkSync(reportPath(shop));
+    return true;
+  } catch (e) {
+    // ENOENT is the normal case: a shop that never ran an upload has no report.
+    if (e.code !== "ENOENT") {
+      console.warn(`Could not delete fulfillment report for ${shop}:`, e.message);
+    }
+    return false;
+  }
+};
+
+/**
  * Turn a spreadsheet cell into the text the merchant meant to type.
  *
  * Digits typed into a General-formatted cell arrive as a JavaScript number, which
@@ -968,14 +993,24 @@ const handleFulfilledOrder = async (shop, accessToken, orderData, trackingInfo, 
 
 /**
  * Generate fulfillment report as Excel buffer
+ *
+ * `summary` is always the whole run, because that is what the Summary sheet
+ * reports on. `options.rows` is the subset written to the data sheet — a
+ * failed-only download still has to say "5 of 120 failed" rather than claiming
+ * the run was 5 orders with a 0% success rate.
+ *
+ * @param {Array}  summary          every row from the run
+ * @param {Array}  [options.rows]   rows to write out (defaults to the whole run)
+ * @param {string} [options.rowsLabel] names the subset on the Summary sheet
  */
-export const generateFulfillmentReport = (summary) => {
+export const generateFulfillmentReport = (summary, options = {}) => {
+  const { rows = summary, rowsLabel = null } = options;
   const workbook = xlsx.utils.book_new();
-  
+
   // Main data sheet
   const sheetData = [
     ["Order Number", "Tracking Number", "Tracking Company", "Tracking URL", "Status", "Details", "Fulfillment ID", "Processed At"],
-    ...summary.map((r) => [
+    ...rows.map((r) => [
       r.orderNumber,
       r.trackingNumber || "",
       r.trackingCompany || "",
@@ -1001,19 +1036,22 @@ export const generateFulfillmentReport = (summary) => {
     { wch: 25 }   // Processed At
   ];
   
-  xlsx.utils.book_append_sheet(workbook, worksheet, "Fulfillment Report");
-  
+  xlsx.utils.book_append_sheet(workbook, worksheet, rowsLabel ? "Failed Orders" : "Fulfillment Report");
+
   // Add summary sheet
   const successCount = summary.filter(r => !r.error).length;
   const failedCount = summary.filter(r => r.error).length;
-  
+
   const summarySheetData = [
     ["Fulfillment Report Summary"],
     [""],
     ["Total Orders", summary.length],
     ["Successful", successCount],
     ["Failed", failedCount],
-    ["Success Rate", `${((successCount / summary.length) * 100).toFixed(1)}%`],
+    // Guard the divide: callers 404 on an empty run today, but a NaN success
+    // rate is a worse thing to hand a merchant than a zero.
+    ["Success Rate", summary.length ? `${((successCount / summary.length) * 100).toFixed(1)}%` : "—"],
+    ...(rowsLabel ? [[""], ["Rows in this file", `${rowsLabel} (${rows.length})`]] : []),
     [""],
     ["Generated At", new Date().toLocaleString()]
   ];
@@ -1028,6 +1066,7 @@ export const generateFulfillmentReport = (summary) => {
 export default {
   getLastFulfillmentSummary,
   setFulfillmentSummary,
+  deleteFulfillmentSummary,
   parseExcelFile,
   cleanupTempFile,
   processOrderFulfillment,

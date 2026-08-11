@@ -1,7 +1,7 @@
 import { Suspense, lazy } from "react";
 import { Routes as ReactRouterRoutes, Route } from "react-router-dom";
 
-import { PageSkeleton } from "./components";
+import { PageLoader } from "./components";
 
 /**
  * File-based routing.
@@ -28,7 +28,7 @@ export default function Routes({ pages }) {
   // One Suspense around the whole switch rather than one per route: only a single
   // route renders at a time, so the boundary can only ever be waiting on one chunk.
   return (
-    <Suspense fallback={<PageSkeleton />}>
+    <Suspense fallback={<PageLoader />}>
       <ReactRouterRoutes>
         {routeComponents}
         <Route path="*" element={<NotFound />} />

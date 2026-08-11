@@ -7,11 +7,11 @@ import {
   Checkbox,
   Layout,
   Page,
-  SkeletonBodyText,
   Text,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
 
+import { PageLoader } from "../components/index.js";
 import { safeFetchJson } from "../utils/api.js";
 
 /**
@@ -100,8 +100,10 @@ export default function Settings() {
 
         <Layout.Section>
           <Card>
+            {/* Sized to roughly the height of the card it precedes, so the page
+                does not jump when the settings arrive. */}
             {!settings ? (
-              <SkeletonBodyText lines={4} />
+              <PageLoader minHeight="9rem" size="small" />
             ) : (
               <BlockStack gap="500">
                 <BlockStack gap="100">

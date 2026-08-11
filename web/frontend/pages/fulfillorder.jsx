@@ -14,10 +14,12 @@ import {
   Spinner,
   Badge,
   Checkbox,
+  Icon,
   IndexTable,
   Pagination,
   Link,
 } from "@shopify/polaris";
+import { FileIcon, UploadIcon, XIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useNavigate } from "react-router-dom";
 import { safeFetchJson, safeFetchBlob } from "../utils/api.js";
@@ -33,6 +35,66 @@ import {
 // by the time it matters the merchant has learned to ignore it.
 const TRIAL_WARNING_DAYS = 3;
 
+// Mirrors config.upload on the server. Checking here too turns a wasted upload and
+// a 400 into an instant message next to the file the merchant just picked.
+const MAX_FILE_BYTES = 10 * 1024 * 1024;
+const ACCEPTED_EXTENSIONS = [".xlsx", ".xls", ".csv"];
+
+// Two things Polaris cannot express on its own: the indeterminate sweep, and the
+// entrance of the panel that replaces the drop zone. ProgressBar is determinate,
+// and there is no honest percentage to show — the upload itself is milliseconds
+// and the wait is Shopify fulfilling each row, which reports nothing back until
+// it is done. A sweeping bar and a real elapsed clock say "working" without
+// inventing a number. Colors come from Polaris custom properties so the panel
+// still follows the merchant's theme.
+const UPLOAD_STYLES = `
+.ef-zone-swap { animation: ef-zone-in 180ms ease-out both; }
+@keyframes ef-zone-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
+.ef-file-row { display: flex; align-items: center; gap: var(--p-space-300); }
+.ef-file-row__meta { flex: 1 1 auto; min-width: 0; }
+
+.ef-progress {
+  position: relative;
+  overflow: hidden;
+  block-size: var(--p-space-150);
+  border-radius: var(--p-border-radius-full);
+  background-color: var(--p-color-bg-fill-tertiary);
+}
+.ef-progress::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 38%;
+  border-radius: inherit;
+  background-color: var(--p-color-bg-fill-brand);
+  animation: ef-progress-sweep 1.25s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes ef-progress-sweep {
+  from { transform: translateX(-105%); }
+  to { transform: translateX(305%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ef-zone-swap { animation: none; }
+  .ef-progress::after { inline-size: 100%; opacity: 0.6; animation: none; }
+}
+`;
+
+const formatFileSize = (bytes) => {
+  if (!Number.isFinite(bytes)) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  return kb < 1024 ? `${Math.round(kb)} KB` : `${(kb / 1024).toFixed(1)} MB`;
+};
+
+const formatElapsed = (seconds) =>
+  `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+
 export default function FulfillOrder() {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -44,6 +106,7 @@ export default function FulfillOrder() {
   // "don't send" — including a settings request that errors.
   const [notifyCustomer, setNotifyCustomer] = useState(false);
   const [touchedNotify, setTouchedNotify] = useState(false);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const billing = useBilling();
   const navigate = useNavigate();
   const itemsPerPage = 5;
@@ -77,8 +140,53 @@ export default function FulfillOrder() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDropZoneDrop = (_dropFiles, acceptedFiles) => {
-    setFile(acceptedFiles[0]);
+  // A run over a few hundred rows takes long enough that a static "processing"
+  // message starts to read like a hang. A counting clock is the one piece of real
+  // progress information available here, so it is the one thing shown.
+  useEffect(() => {
+    if (!uploading) return undefined;
+
+    setElapsedSeconds(0);
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      setElapsedSeconds(Math.floor((Date.now() - startedAt) / 1000));
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [uploading]);
+
+  const handleDropZoneDrop = (_dropFiles, acceptedFiles, rejectedFiles) => {
+    const [accepted] = acceptedFiles;
+
+    if (!accepted) {
+      // Polaris' own rejection overlay disappears the moment the drag ends, which
+      // leaves a merchant who dropped a PDF with no idea why nothing happened.
+      if (rejectedFiles?.length) {
+        setError(
+          `"${rejectedFiles[0].name}" is not a spreadsheet. Upload a ${ACCEPTED_EXTENSIONS.join(
+            ", "
+          )} file.`
+        );
+      }
+      return;
+    }
+
+    if (accepted.size > MAX_FILE_BYTES) {
+      setError(
+        `"${accepted.name}" is ${formatFileSize(accepted.size)}. The upload limit is ${
+          MAX_FILE_BYTES / (1024 * 1024)
+        } MB.`
+      );
+      return;
+    }
+
+    setError(null);
+    setFile(accepted);
+  };
+
+  const handleRemoveFile = () => {
+    setFile(null);
+    setError(null);
   };
 
   const handleUpload = async () => {
@@ -99,6 +207,9 @@ export default function FulfillOrder() {
       });
 
       setResult(data.summary);
+      // A new run is a new report. Without this a merchant left on page 3 of the
+      // last one lands on an empty table when the new run has fewer rows.
+      setCurrentPage(1);
       setFile(null);
     } catch (err) {
       // A plan can lapse between page load and upload. The gate's 402 turns into
@@ -303,18 +414,30 @@ export default function FulfillOrder() {
     link.click();
   };
 
-  const handleDownloadReport = async () => {
+  // failedOnly asks the server for just the rows that were not fulfilled. The
+  // filtering happens there rather than here because the stored report carries
+  // fields the page never receives — fulfillment IDs and the like — and a sheet
+  // rebuilt in the browser would quietly drop them.
+  const handleDownloadReport = async ({ failedOnly = false } = {}) => {
     try {
-      const res = await safeFetchBlob("/api/orders/fulfillment-report/download");
+      const res = await safeFetchBlob(
+        `/api/orders/fulfillment-report/download${failedOnly ? "?status=failed" : ""}`
+      );
 
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.setAttribute("download", `fulfillment_report.xlsx`);
+      link.setAttribute(
+        "download",
+        failedOnly ? "failed_fulfillments.xlsx" : "fulfillment_report.xlsx"
+      );
       document.body.appendChild(link);
       link.click();
       link.remove();
+      // The object URL pins the blob in memory until it is revoked, and a
+      // merchant working through a bad sheet downloads this more than once.
+      window.URL.revokeObjectURL(url);
     } catch (err) {
       alert(err.message || "Download failed");
     }
@@ -447,6 +570,9 @@ export default function FulfillOrder() {
     const totalPages = Math.ceil(totalItems / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const paginatedItems = result.slice(startIndex, startIndex + itemsPerPage);
+    // Matches what the server filters on: a warning row was still fulfilled, so
+    // it does not belong in a sheet meant to be fixed and re-uploaded.
+    const failedCount = result.filter((r) => r.error).length;
 
     const handlePageChange = (newPage) => {
       setCurrentPage(newPage);
@@ -461,9 +587,23 @@ export default function FulfillOrder() {
               <Text as="h2" variant="headingMd">
                 Detailed Order Report
               </Text>
-              <Button onClick={handleDownloadReport} size="slim">
-                Download Full Report
-              </Button>
+              <InlineStack gap="200" blockAlign="center">
+                {/* Only offered when there is something in it. The failed sheet
+                    is the one a merchant actually works from — correct the rows,
+                    re-upload it — so it carries its count and sits next to the
+                    full report rather than replacing it. */}
+                {failedCount > 0 && (
+                  <Button
+                    onClick={() => handleDownloadReport({ failedOnly: true })}
+                    size="slim"
+                  >
+                    Download Failed Only ({failedCount})
+                  </Button>
+                )}
+                <Button onClick={() => handleDownloadReport()} size="slim">
+                  Download Full Report
+                </Button>
+              </InlineStack>
             </InlineStack>
 
             {/* IndexTable rather than a hand-built <table>: it brings the admin's
@@ -561,6 +701,7 @@ export default function FulfillOrder() {
   return (
     <Page fullWidth>
       <TitleBar title="Epic Fulfill: Bulk Orders" />
+      <style>{UPLOAD_STYLES}</style>
 
       <Layout>
         {blockedByBilling && (
@@ -617,48 +758,159 @@ export default function FulfillOrder() {
         <Layout.Section>
           <Card>
             <BlockStack gap="400">
-            <Text as="h2" variant="headingMd">
-              Bulk Fulfill Orders via Excel
-            </Text>
-            <DropZone
-              accept=".xlsx, .xls, .csv"
-              type="file"
-              onDrop={handleDropZoneDrop}
-            >
-              <Box padding="400">
-                <BlockStack gap="200" inlineAlign="center">
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  Bulk Fulfill Orders via Excel
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Drop in a sheet of order numbers and tracking details — every
+                  row is fulfilled in one run.
+                </Text>
+              </BlockStack>
+
+              {/* The drop zone is swapped out entirely while a run is in flight
+                  rather than covered by a scrim. A full-page overlay dimmed the
+                  navigation and the plan banners too, for a wait that belongs to
+                  one card, and it left the merchant with nothing to look at but
+                  a spinner floating over greyed-out text. */}
+              {uploading ? (
+                <div className="ef-zone-swap">
                   <Box
                     background="bg-surface-secondary"
-                    borderRadius="full"
-                    padding="300"
+                    borderColor="border"
+                    borderWidth="025"
+                    borderRadius="300"
+                    padding="400"
                   >
-                    <Text as="span" variant="headingLg">
-                      📤
-                    </Text>
+                    <BlockStack gap="300">
+                      <div className="ef-file-row">
+                        <Spinner
+                          accessibilityLabel="Fulfilling your orders"
+                          size="small"
+                        />
+                        <div className="ef-file-row__meta">
+                          <BlockStack gap="050">
+                            <Text as="p" variant="bodyMd" fontWeight="semibold">
+                              Fulfilling your orders…
+                            </Text>
+                            <Text as="p" variant="bodySm" tone="subdued" breakWord>
+                              {file?.name
+                                ? `${file.name} · ${formatElapsed(elapsedSeconds)} elapsed`
+                                : `${formatElapsed(elapsedSeconds)} elapsed`}
+                            </Text>
+                          </BlockStack>
+                        </div>
+                      </div>
+
+                      <div className="ef-progress" />
+
+                      <Text as="p" variant="bodySm" tone="subdued">
+                        Large sheets take a minute or two. Keep this tab open —
+                        the full report appears here as soon as the run finishes.
+                      </Text>
+                    </BlockStack>
                   </Box>
-                  <DropZone.FileUpload />
-                </BlockStack>
-              </Box>
-              {file && (
-                <BlockStack gap="200" inlineAlign="center">
-                  <Text variant="bodyMd" fontWeight="medium">
-                    {file.name}
-                  </Text>
-                </BlockStack>
+                </div>
+              ) : (
+                <DropZone
+                  accept={ACCEPTED_EXTENSIONS.join(",")}
+                  type="file"
+                  allowMultiple={false}
+                  variableHeight
+                  onDrop={handleDropZoneDrop}
+                >
+                  {file ? (
+                    <div className="ef-zone-swap">
+                      <Box padding="400">
+                        <div className="ef-file-row">
+                          <Box
+                            background="bg-fill-success-secondary"
+                            borderRadius="200"
+                            padding="200"
+                          >
+                            <Icon source={FileIcon} tone="success" />
+                          </Box>
+                          <div className="ef-file-row__meta">
+                            <BlockStack gap="050">
+                              {/* breakWord, not truncate: a filename has no
+                                  spaces to wrap on, and DropZone's container is
+                                  a flex item with the default min-width:auto —
+                                  one long name pushes the whole card wider than
+                                  the viewport. It also keeps the tail visible,
+                                  which is the half that says which version of
+                                  the sheet this is. */}
+                              <Text
+                                as="p"
+                                variant="bodyMd"
+                                fontWeight="semibold"
+                                breakWord
+                              >
+                                {file.name}
+                              </Text>
+                              <Text as="p" variant="bodySm" tone="subdued">
+                                {formatFileSize(file.size)} · ready to fulfill
+                              </Text>
+                            </BlockStack>
+                          </div>
+                          {/* Every click inside a DropZone reopens the file
+                              picker, so removing a file would immediately ask
+                              for another one. */}
+                          <div onClick={(event) => event.stopPropagation()}>
+                            <Button
+                              icon={XIcon}
+                              variant="tertiary"
+                              accessibilityLabel={`Remove ${file.name}`}
+                              onClick={handleRemoveFile}
+                            />
+                          </div>
+                        </div>
+                      </Box>
+                    </div>
+                  ) : (
+                    <Box padding="500">
+                      <BlockStack gap="200" inlineAlign="center">
+                        <Box
+                          background="bg-fill-info-secondary"
+                          borderRadius="full"
+                          padding="300"
+                        >
+                          <Icon source={UploadIcon} tone="info" />
+                        </Box>
+                        <BlockStack gap="100" inlineAlign="center">
+                          <Text as="p" variant="headingSm">
+                            Drag and drop your file here
+                          </Text>
+                          <Text as="p" variant="bodySm" tone="subdued">
+                            {ACCEPTED_EXTENSIONS.join(", ")} up to{" "}
+                            {MAX_FILE_BYTES / (1024 * 1024)} MB
+                          </Text>
+                        </BlockStack>
+                        {/* A real button rather than relying on the zone being
+                            clickable: DropZone's file input is visually hidden,
+                            so without one there is nothing for a keyboard to
+                            land on. No onClick needed — every click inside the
+                            zone opens the picker. DropZone.FileUpload would do
+                            the same, but it carries 32px of its own padding and
+                            leaves the action floating away from the copy. */}
+                        <Box paddingBlockStart="200">
+                          <Button>Browse files</Button>
+                        </Box>
+                      </BlockStack>
+                    </Box>
+                  )}
+                </DropZone>
               )}
-            </DropZone>
 
-            {error && (
-              <Banner
-                title="Upload failed"
-                tone="critical"
-                onDismiss={() => setError(null)}
-              >
-                <p>{error}</p>
-              </Banner>
-            )}
+              {error && (
+                <Banner
+                  title="Upload failed"
+                  tone="critical"
+                  onDismiss={() => setError(null)}
+                >
+                  <p>{error}</p>
+                </Banner>
+              )}
 
-            <Box paddingBlockStart="400">
               <Checkbox
                 label="Send shipping notification to customers"
                 helpText="Off by default. Notification emails cannot be undone, so check this only when the tracking numbers in your sheet are final."
@@ -669,61 +921,30 @@ export default function FulfillOrder() {
                 }}
                 disabled={uploading}
               />
-            </Box>
 
-            <Box>
               <InlineStack blockAlign="center" align="start" gap="200">
+                {/* No `loading` here on purpose: Polaris swaps the label out for
+                    a spinner, and the panel above is already spinning. Keeping
+                    the label readable says what is happening; a second spinner
+                    only says something is. */}
                 <Button
                   variant="primary"
                   onClick={handleUpload}
-                  loading={uploading}
                   disabled={!file || uploading || blockedByBilling}
                 >
-                  {uploading ? "Uploading..." : "Upload and Fulfill Orders"}
+                  {uploading ? "Fulfilling…" : "Upload and Fulfill Orders"}
                 </Button>
 
                 {/* Left enabled without a plan on purpose — a merchant deciding
                     whether to subscribe should be able to see the file format
                     the app expects first. */}
-                <Button onClick={handleDownloadSample}>
+                <Button onClick={handleDownloadSample} disabled={uploading}>
                   Download Sample Excel
                 </Button>
               </InlineStack>
-            </Box>
             </BlockStack>
           </Card>
         </Layout.Section>
-
-        {/* The scrim used a hardcoded translucent white, which turns into a bright
-            sheet over a dark admin. bg-backdrop is the token Shopify's own modals
-            dim with, so it follows the merchant's theme. */}
-        {uploading && (
-          <Box
-            position="fixed"
-            insetBlockStart="0"
-            insetBlockEnd="0"
-            insetInlineStart="0"
-            insetInlineEnd="0"
-            background="backdrop-bg"
-            zIndex="1000"
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                height: "100%",
-              }}
-            >
-              <BlockStack gap="400" inlineAlign="center">
-                <Spinner accessibilityLabel="Uploading file" size="large" />
-                <Text variant="bodyMd" as="p">
-                  Processing your file...
-                </Text>
-              </BlockStack>
-            </div>
-          </Box>
-        )}
 
         {renderImportSummary()}
         {renderDetailedResults()}

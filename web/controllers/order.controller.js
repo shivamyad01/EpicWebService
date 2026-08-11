@@ -212,6 +212,10 @@ export const getFulfillmentReport = (req, res) => {
 
 /**
  * Download fulfillment report as Excel file
+ *
+ * ?status=failed narrows the sheet to the rows that still need action. Anything
+ * else — including no query at all — returns the whole run, so the existing
+ * download link behaves exactly as before.
  */
 export const downloadFulfillmentReport = (req, res) => {
   const session = res.locals.shopify.session;
@@ -222,11 +226,27 @@ export const downloadFulfillmentReport = (req, res) => {
     return res.status(404).json({ message: "No fulfillment report available." });
   }
 
-  const buffer = generateFulfillmentReport(summary);
+  // Failed means a row that was not fulfilled. Warnings are fulfillments that
+  // went through with something worth noting, so they stay out of the fix-list.
+  const failedOnly = req.query.status === "failed";
+  const rows = failedOnly ? summary.filter((r) => r.error) : summary;
+
+  if (rows.length === 0) {
+    return res.status(404).json({
+      message: "Every order in the last run was fulfilled. There is nothing to download."
+    });
+  }
+
+  const buffer = generateFulfillmentReport(summary, {
+    rows,
+    rowsLabel: failedOnly ? "Failed rows only" : null
+  });
 
   res.setHeader(
     "Content-Disposition",
-    `attachment; filename=fulfillment_report_${Date.now()}.xlsx`
+    `attachment; filename=${
+      failedOnly ? "failed_fulfillments" : "fulfillment_report"
+    }_${Date.now()}.xlsx`
   );
   res.setHeader(
     "Content-Type",

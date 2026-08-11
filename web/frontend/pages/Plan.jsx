@@ -13,10 +13,9 @@ import {
   Banner,
   List,
   Modal,
-  SkeletonBodyText,
-  SkeletonDisplayText,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { PageLoader } from "../components/index.js";
 import {
   useBilling,
   openPricingPage,
@@ -62,23 +61,13 @@ const formatDate = (iso) => {
   });
 };
 
-function PlanSkeleton() {
+// The title bar is kept so the admin header does not sit blank while billing
+// answers — everything below it is the app's one loading state.
+function PlanLoading() {
   return (
     <Page>
       <TitleBar title="Plan" />
-      <Layout>
-        <Layout.AnnotatedSection
-          title="Subscription"
-          description="Your plan is managed by Shopify."
-        >
-          <Card>
-            <BlockStack gap="400">
-              <SkeletonDisplayText size="small" />
-              <SkeletonBodyText lines={3} />
-            </BlockStack>
-          </Card>
-        </Layout.AnnotatedSection>
-      </Layout>
+      <PageLoader />
     </Page>
   );
 }
@@ -133,7 +122,7 @@ export default function Plan() {
     }
   };
 
-  if (billing.loading) return <PlanSkeleton />;
+  if (billing.loading) return <PlanLoading />;
 
   const statusBadge = unknown ? (
     <Badge>Couldn't check</Badge>

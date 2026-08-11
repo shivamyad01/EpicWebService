@@ -19,9 +19,62 @@
 
     <meta name="shopify-api-key" content="%VITE_SHOPIFY_API_KEY%" />
     <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js"></script>
+
+    <!--
+      Pre-boot loader.
+
+      Every click on a nav item reloads this document, and React cannot draw its
+      own loader until the entry bundle has downloaded and parsed. Until then the
+      page is empty, which showed as a white sheet before the spinner appeared.
+
+      This one is inline CSS on markup that is already in the HTML, so it paints
+      on the first frame with no script and no request of its own. React clears
+      the container on its first commit, so nothing here needs removing.
+
+      Geometry matches PageLoader: centred, 60vh tall, a 44px spinner — the same
+      size as Polaris' large one. Keep the two in step so the handover from this
+      spinner to the React one is invisible.
+    -->
+    <style>
+      body {
+        margin: 0;
+        background-color: #f1f1f1;
+      }
+
+      .preboot {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh;
+      }
+
+      .preboot__spinner {
+        box-sizing: border-box;
+        width: 44px;
+        height: 44px;
+        border: 3px solid rgba(26, 26, 26, 0.15);
+        border-top-color: #4a4a4a;
+        border-radius: 50%;
+        animation: preboot-spin 0.6s linear infinite;
+      }
+
+      @keyframes preboot-spin {
+        to { transform: rotate(360deg); }
+      }
+
+      /* Polaris' spinner keeps turning under this setting, so this one does too:
+         it is the only signal that the app is still coming. */
+      @media (prefers-reduced-motion: reduce) {
+        .preboot__spinner { animation-duration: 1.8s; }
+      }
+    </style>
   </head>
   <body>
-    <div id="app"><!--index.jsx injects App.jsx here--></div>
+    <div id="app"><!--index.jsx injects App.jsx here, replacing the loader below-->
+      <div class="preboot" aria-hidden="true">
+        <div class="preboot__spinner"></div>
+      </div>
+    </div>
     <script type="module" src="/index.jsx"></script>
   </body>
 </html>

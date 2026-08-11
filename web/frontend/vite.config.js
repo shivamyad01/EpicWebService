@@ -54,8 +54,20 @@ export default defineConfig({
     include: ["xlsx/xlsx.mjs"],
   },
   build: {
+    // The server reads this to work out which page chunk the incoming URL needs,
+    // and preloads it alongside the entry instead of leaving the browser to
+    // discover it only once the entry has parsed. See utils/assetPreload.js.
+    manifest: true,
     rollupOptions: {
       external: ["fs", "path", "crypto", "stream"],
+      output: {
+        // Polaris and React change when their versions do, which is rarely, and
+        // together they are most of the bundle. Split out, an app-code deploy no
+        // longer invalidates ~300KB the merchant already had cached.
+        manualChunks: {
+          vendor: ["react", "react-dom", "react-router-dom"],
+        },
+      },
     },
   },
   server: {

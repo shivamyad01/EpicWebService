@@ -1,7 +1,6 @@
 import { ApiVersion } from "@shopify/shopify-api";
 import { shopifyApp } from "@shopify/shopify-app-express";
 import { SQLiteSessionStorage } from "@shopify/shopify-app-session-storage-sqlite";
-import { restResources } from "@shopify/shopify-api/rest/admin/2024-10";
 
 // Sessions must live on the mounted volume. docker-compose mounts app_data at
 // /app/data, so writing to the working directory instead put the database on the
@@ -23,13 +22,20 @@ export const SESSION_TABLE_NAME = "shopify_sessions";
 
 const shopify = shopifyApp({
   api: {
-    // Pinned rather than tracked. LATEST_API_VERSION used to supply this, but it
-    // silently moved the app to whatever version the library shipped with — the
-    // boot log warned about exactly that, since the REST resources below are
-    // 2024-10. shopify-app-express v6 removed the constant and made this required.
-    // Keep in step with shopify.app.toml's `api_version`.
-    apiVersion: ApiVersion.October24,
-    restResources,
+    // Pinned rather than tracked, so a library upgrade cannot move the app to a
+    // version its queries were never checked against.
+    //
+    // Shopify supports each version for 12 months and then falls forward: a
+    // request naming a retired version is served by the oldest one still
+    // accessible. This was pinned to 2024-10, retired in 2025, so every call was
+    // already being answered by a version nobody here had tested. Keep it inside
+    // the support window, and in step with shopify.app.toml's `api_version` and
+    // config.shopify.apiVersion, which builds the REST URLs.
+    //
+    // restResources is deliberately not passed: nothing in the app uses the REST
+    // resource classes (the two REST calls it does make are hand-rolled through
+    // axios), and importing them would pin a second, separate version here.
+    apiVersion: ApiVersion.July26,
     future: {
       customerAddressDefaultFix: true,
       lineItemBilling: true,

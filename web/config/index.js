@@ -23,7 +23,11 @@ export const config = {
   },
   
   shopify: {
-    apiVersion: "2024-10"
+    // Used to build the REST Admin URLs in fulfillment.service.js. Must match
+    // shopify.js's apiVersion and shopify.app.toml's api_version — a version
+    // Shopify has retired is not rejected, it is quietly served by the oldest
+    // one still supported, so a stale value here fails silently.
+    apiVersion: "2026-07"
   },
 
   // Shopify Managed Pricing. The plans themselves live in the Partner Dashboard,

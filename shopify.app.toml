@@ -10,7 +10,11 @@ embedded = true
 automatically_update_urls_on_dev = true
 
 [webhooks]
-api_version = "2024-10"
+# Keep in step with web/shopify.js and config.shopify.apiVersion. Shopify
+# supports a version for 12 months; past that, requests are served by the oldest
+# still-supported version instead of failing, so a stale value here drifts
+# silently rather than breaking loudly.
+api_version = "2026-07"
 
   [[webhooks.subscriptions]]
   uri = "/api/webhooks"
@@ -28,7 +32,29 @@ api_version = "2024-10"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_customers,read_orders,read_products,write_assigned_fulfillment_orders,write_customers,write_fulfillments,write_merchant_managed_fulfillment_orders,write_orders,write_products,write_third_party_fulfillment_orders,read_locations"
+#
+# Exactly what the app calls, and nothing else — App Store review expects the
+# minimum, and every extra scope is one more thing a merchant is asked to trust
+# the app with at install.
+#
+#   read_orders                              find the order behind a row, read
+#                                            its fulfillments
+#   write_*_fulfillment_orders               create fulfillments and update
+#                                            tracking. All three because the app
+#                                            fulfills whatever the merchant
+#                                            uploads, wherever it is assigned:
+#                                            merchant-managed locations, this
+#                                            app's own, or another service's.
+#
+# Dropped as unused: read_customers, write_customers, read_products,
+# write_products, write_orders, read_locations, and write_fulfillments — the
+# legacy scope for REST fulfillment endpoints Shopify removed in 2022-07.
+# Fulfillment work is governed by the fulfillment-order scopes above.
+#
+# Removing scopes needs `shopify app deploy` to take effect. It does not prompt
+# merchants to reinstall: existing grants are a superset, so their sessions stay
+# valid.
+scopes = "read_orders,write_assigned_fulfillment_orders,write_merchant_managed_fulfillment_orders,write_third_party_fulfillment_orders"
 
 [auth]
 redirect_urls = [

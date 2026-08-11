@@ -17,7 +17,7 @@ import {
   Link,
 } from "@shopify/polaris";
 import { TitleBar } from "@shopify/app-bridge-react";
-import { useTranslation } from "react-i18next";
+import { t } from "../utils/i18nUtils";
 import {
   EmailIcon,
   ProfileIcon,
@@ -36,7 +36,6 @@ const FEEDBACK_TYPES = [
 const RATINGS = [1, 2, 3, 4, 5];
 
 export default function Feedback() {
-  const { t } = useTranslation();
   const [formData, setFormData] = useState({
     name: "",
     email: "",

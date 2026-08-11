@@ -1,9 +1,9 @@
 import { BrowserRouter } from "react-router-dom";
-import { useTranslation } from "react-i18next";
+import { t } from "./utils/i18nUtils";
 import { NavMenu } from "@shopify/app-bridge-react";
 import Routes from "./Routes";
 
-import { QueryProvider, PolarisProvider, ErrorBoundary } from "./components";
+import { PolarisProvider, ErrorBoundary } from "./components";
 
 
 export default function App() {
@@ -14,13 +14,11 @@ export default function App() {
   // fulfill screen and the whole xlsx library it imports — into the entry bundle, so
   // opening the app downloaded and parsed all of them before rendering any one.
   const pages = import.meta.glob("./pages/**/!(*.test.[jt]sx)*.([jt]sx)");
-  const { t } = useTranslation();
 
   return (
     <PolarisProvider>
       <BrowserRouter>
-        <QueryProvider>
-          <ErrorBoundary>
+        <ErrorBoundary>
           <NavMenu>
             <a href="/" rel="home" />
             <a href="/fulfillorder">{t("NavigationMenu.fulfillOrder")}</a>
@@ -31,9 +29,8 @@ export default function App() {
             <a href="/feedback">{t("NavigationMenu.feedback")}</a>
             <a href="/settings">Settings</a>
           </NavMenu>
-            <Routes pages={pages} />
-          </ErrorBoundary>
-        </QueryProvider>
+          <Routes pages={pages} />
+        </ErrorBoundary>
       </BrowserRouter>
     </PolarisProvider>
   );

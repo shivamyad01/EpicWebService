@@ -14,6 +14,7 @@ import WebhookHandlers from "./webhooks/index.js";
 import config from "./config/index.js";
 import { orderRoutes, settingsRoutes, billingRoutes } from "./routes/index.js";
 import { refreshOfflineToken, upgradeTokenAfterOAuth } from "./middleware/token.middleware.js";
+import { preloadTagsFor } from "./utils/assetPreload.js";
 
 const app = express();
 
@@ -71,11 +72,61 @@ app.use("/api/billing", billingRoutes);
 // STATIC FILES & CSP
 // =============================================================================
 app.use(shopify.cspHeaders());
-app.use(serveStatic(config.staticPath, { index: false }));
+
+// Vite fingerprints everything it writes into assets/, so a cached hit there can
+// never be stale — the filename changes whenever the contents do. Without this
+// serve-static sends no Cache-Control at all, and the browser revalidates every
+// script, stylesheet and image on each load. Clicking a nav item reloads this
+// whole document, so that was a round trip per asset before anything appeared.
+//
+// Only in production: outside it staticPath points at the frontend source, where
+// the filenames carry no hash and freezing them for a year would be a trap.
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+
+app.use(
+  serveStatic(config.staticPath, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (IS_PRODUCTION && /[\\/]assets[\\/]/.test(filePath)) {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
+    },
+  })
+);
 
 // =============================================================================
 // FRONTEND SERVING
 // =============================================================================
+// Read once and kept. This used to be a synchronous readFileSync plus a string
+// replace on every page load, and a nav click is a page load.
+//
+// Not cached outside production, where the file on disk is the source template
+// and is expected to change under a running server.
+let cachedIndexHtml = null;
+
+const indexHtml = () => {
+  if (cachedIndexHtml && IS_PRODUCTION) {
+    return cachedIndexHtml;
+  }
+
+  cachedIndexHtml = readFileSync(join(config.staticPath, "index.html"))
+    .toString()
+    .replace("%VITE_SHOPIFY_API_KEY%", process.env.SHOPIFY_API_KEY || "");
+
+  return cachedIndexHtml;
+};
+
+/**
+ * The document, with the incoming page's chunk named in the head so the browser
+ * fetches it next to the entry bundle rather than a round trip later.
+ */
+const documentFor = (pathname) => {
+  const preloads = preloadTagsFor(config.staticPath, pathname);
+  const html = indexHtml();
+
+  return preloads ? html.replace("</head>", `  ${preloads}\n  </head>`) : html;
+};
+
 app.use("/", async (req, res) => {
   const shop = req.query.shop || res.locals.shopify?.session?.shop;
   if (!shop) {
@@ -86,11 +137,12 @@ app.use("/", async (req, res) => {
     res
       .status(200)
       .set("Content-Type", "text/html")
-      .send(
-        readFileSync(join(config.staticPath, "index.html"))
-          .toString()
-          .replace("%VITE_SHOPIFY_API_KEY%", process.env.SHOPIFY_API_KEY || "")
-      );
+      // The document names the fingerprinted assets, so it is the one thing that
+      // must never be served from cache — a stale copy would point at bundles
+      // that no longer exist. no-cache still allows a 304, so it costs one small
+      // conditional request rather than a download.
+      .set("Cache-Control", "no-cache")
+      .send(documentFor(req.path));
   });
 });
 
