@@ -13,6 +13,7 @@ import {
   setFulfillmentSummary,
   generateFulfillmentReport
 } from "../services/fulfillment.service.js";
+import { generateSampleWorkbook } from "../services/sample.service.js";
 
 // Batch processing configuration. Taken from config rather than declared again
 // here — config.fulfillment already carries these numbers, and a second copy is
@@ -216,6 +217,36 @@ export const getFulfillmentReport = (req, res) => {
 };
 
 /**
+ * Download the sample spreadsheet.
+ *
+ * Built on the server so its carrier dropdown is filled from the same config the
+ * fulfillment service matches names against, and so it can carry a real in-cell
+ * dropdown at all — see services/sample.service.js.
+ *
+ * Not behind the subscription gate, like the report below: a merchant deciding
+ * whether to subscribe should be able to see the format the app expects first.
+ */
+export const downloadSampleFile = async (req, res) => {
+  try {
+    const buffer = await generateSampleWorkbook();
+
+    res.setHeader(
+      "Content-Disposition",
+      "attachment; filename=sample_bulk_fulfillment.xlsx"
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+
+    return res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("[sample] could not build the sample workbook:", err.message);
+    return res.status(500).json({ error: "Could not build the sample file." });
+  }
+};
+
+/**
  * Download fulfillment report as Excel file
  *
  * ?status=failed narrows the sheet to the rows that still need action. Anything
@@ -264,5 +295,6 @@ export const downloadFulfillmentReport = (req, res) => {
 export default {
   bulkFulfillOrders,
   getFulfillmentReport,
-  downloadFulfillmentReport
+  downloadFulfillmentReport,
+  downloadSampleFile
 };

@@ -222,202 +222,28 @@ export default function FulfillOrder() {
     }
   };
 
+  // Built and downloaded from the server. It carries a real in-cell dropdown of
+  // carrier names, which needs data validations that SheetJS's community build
+  // cannot write — and the list comes from the same server config the fulfilment
+  // service matches names against, so the two cannot drift apart. Building it
+  // here also meant shipping ~300KB of xlsx to every merchant who opened the page.
   const handleDownloadSample = async () => {
-    // xlsx is ~300KB and this is the only thing on the page that needs it, so it
-    // is fetched on the click rather than bundled into the page every merchant
-    // loads to upload a file.
-    const XLSX = await import("xlsx");
+    try {
+      const res = await safeFetchBlob("/api/orders/sample-file");
+      const url = window.URL.createObjectURL(await res.blob());
+      const link = document.createElement("a");
 
-    // Carriers that work with TrackingUrl left blank, spelled exactly as the
-    // server expects. Keep in sync with the union of shopifyTrackingCompanies
-    // and trackingUrlOverrides in the server config.
-    const carriers = [
-      "Amazon Logistics UK",
-      "Amazon Logistics US",
-      "Bluedart",
-      "Delhivery",
-      "DHL eCommerce",
-      "DHL Express",
-      "DTDC",
-      "Ecom Express",
-      "Ekart",
-      "FedEx",
-      "Gati KWE",
-      "India Post",
-      "Professional Couriers",
-      "Sendle",
-      "Shadowfax",
-      "SHREE NANDAN COURIER",
-      "TNT",
-      "Trackon",
-      "UPS",
-      "USPS",
-      "XpressBees",
-    ];
-
-    const workbook = XLSX.utils.book_new();
-
-    const ordersSheet = XLSX.utils.aoa_to_sheet([
-      ["OrderNumber", "TrackingNumber", "TrackingCompany", "TrackingUrl"],
-      ["#1025", "RX123456789IN", "India Post", ""],
-      ["#1026", "BD987654321IN", "Bluedart", ""],
-      ["#1027", "DL123456789IN", "Delhivery", ""],
-      ["#1028", "DT123456789IN", "DTDC", ""],
-      ["#1029", "EE123456789IN", "Ecom Express", ""],
-      ["#1030", "EK123456789IN", "Ekart", ""],
-      ["#1031", "XB123456789IN", "XpressBees", ""],
-      ["#1032", "SF123456789IN", "Shadowfax", ""],
-      ["#1033", "FX123456789IN", "FedEx", ""],
-      ["#1034", "DH123456789IN", "DHL Express", ""],
-      ["#1035", "TC123456789IN", "Trackon", ""],
-      // Only a carrier not on the Carriers sheet needs its own link. Naming the
-      // carrier is better than "Other" — this name is what the customer sees.
-      [
-        "#1036",
-        "SR987654321IN",
-        "Shiprocket",
-        "https://shiprocket.co/tracking/SR987654321IN",
-      ],
-      // Same base link on every row — the app appends each row's own number
-      ["#1037", "JCW90000000001", "Other", "https://jcwexpress.com/tracking?codes="],
-      ["#1038", "JCW90000000002", "Other", "https://jcwexpress.com/tracking?codes="],
-      // Or mark the spot when the number is not at the end of the link
-      ["#1039", "GK123456789IN", "Other", "https://mycourier.com/track/{tracking}/details"],
-    ]);
-
-    ordersSheet["!cols"] = [
-      { wch: 15 }, // OrderNumber
-      { wch: 22 }, // TrackingNumber
-      { wch: 18 }, // TrackingCompany
-      { wch: 45 }, // TrackingUrl
-    ];
-
-    XLSX.utils.book_append_sheet(workbook, ordersSheet, "Orders");
-
-    // The community build of SheetJS cannot write data validations, so an
-    // in-cell dropdown is not possible here. A reference sheet of valid
-    // carrier names is the working substitute.
-    const carriersSheet = XLSX.utils.aoa_to_sheet([
-      ["Carriers that need no TrackingUrl"],
-      [
-        "Copy a name into TrackingCompany exactly as written here and leave TrackingUrl blank. The app works out the tracking link for you.",
-      ],
-      [
-        "For most of these, Shopify itself selects the carrier and reports delivery status — the same as picking it from the dropdown on an order.",
-      ],
-      [""],
-      ...carriers.map((name) => [name]),
-      [""],
-      ["Any other carrier"],
-      [
-        "Type its real name in TrackingCompany, and put the carrier's base tracking link in TrackingUrl — the app appends each row's tracking number.",
-      ],
-      [
-        "These rows are fulfilled with your link, but Shopify cannot report delivery status for them.",
-      ],
-    ]);
-
-    carriersSheet["!cols"] = [{ wch: 70 }];
-
-    XLSX.utils.book_append_sheet(workbook, carriersSheet, "Carriers");
-
-    const instructionsSheet = XLSX.utils.aoa_to_sheet([
-      ["How to fill the Orders sheet"],
-      [""],
-      ["Column", "Required?", "Notes"],
-      [
-        "OrderNumber",
-        "Yes",
-        "Order name as shown in Shopify, e.g. #1025 or V-304797",
-      ],
-      ["TrackingNumber", "Yes", "AWB / consignment number"],
-      [
-        "TrackingCompany",
-        "No",
-        "Use a name from the Carriers sheet. Leave blank to use India Post.",
-      ],
-      [
-        "TrackingUrl",
-        "Sometimes",
-        "Required when the carrier is not on the Carriers sheet.",
-      ],
-      [""],
-      ["Using a carrier that is not on the Carriers sheet"],
-      [
-        "1.",
-        "Type the carrier's real name in TrackingCompany — this name is shown to the customer in the shipping email.",
-      ],
-      [
-        "2.",
-        "Easiest way: put the carrier's base link — the part before the tracking number — in TrackingUrl and copy the same value down the whole column.",
-      ],
-      [
-        "",
-        "The app appends each row's own tracking number, so one link covers every row.",
-      ],
-      [
-        "",
-        "Example: https://jcwexpress.com/tracking?codes=   +   JCW90000000001   =   https://jcwexpress.com/tracking?codes=JCW90000000001",
-      ],
-      [
-        "3.",
-        "The base link has to end where the number goes, on = or /. Include https:// (the app adds it if you forget).",
-      ],
-      [
-        "4.",
-        "If the number sits in the middle of the link, mark the spot with {tracking}. Example: https://mycourier.com/track/{tracking}/details",
-      ],
-      [
-        "5.",
-        "A link that already contains the number is used exactly as written, so pasting full links per row also works.",
-      ],
-      [""],
-      ["Good to know"],
-      [
-        "•",
-        "Leave TrackingUrl blank for any carrier on the Carriers sheet. The app supplies the link, and Shopify keeps delivery status updated where it can.",
-      ],
-      [
-        "•",
-        "If you do fill TrackingUrl, your link is always used instead.",
-      ],
-      [
-        "•",
-        "Carriers outside Shopify's list cannot report delivery status. Their tracking link still works.",
-      ],
-      [
-        "•",
-        "A row with an unrecognized carrier and no TrackingUrl is skipped and reported as an error — it is never fulfilled with a guessed link.",
-      ],
-      [
-        "•",
-        "Carrier names are matched ignoring capitalization, so 'delhivery' and 'Delhivery' both work. Common spellings like 'Blue Dart' and 'Gati' are understood too.",
-      ],
-    ]);
-
-    instructionsSheet["!cols"] = [{ wch: 18 }, { wch: 12 }, { wch: 80 }];
-
-    XLSX.utils.book_append_sheet(workbook, instructionsSheet, "Instructions");
-
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "array",
-    });
-
-    const blob = new Blob([excelBuffer], {
-      type: "application/octet-stream",
-    });
-
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = "sample_bulk_fulfillment.xlsx";
-    link.click();
+      link.href = url;
+      link.setAttribute("download", "sample_bulk_fulfillment.xlsx");
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err.message || "Could not download the sample file");
+    }
   };
 
-  // failedOnly asks the server for just the rows that were not fulfilled. The
-  // filtering happens there rather than here because the stored report carries
-  // fields the page never receives — fulfillment IDs and the like — and a sheet
-  // rebuilt in the browser would quietly drop them.
   const handleDownloadReport = async ({ failedOnly = false } = {}) => {
     try {
       const res = await safeFetchBlob(

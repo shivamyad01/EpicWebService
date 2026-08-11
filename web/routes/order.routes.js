@@ -10,7 +10,8 @@ import { requireActiveSubscription } from "../middleware/billing.middleware.js";
 import {
   bulkFulfillOrders,
   getFulfillmentReport,
-  downloadFulfillmentReport
+  downloadFulfillmentReport,
+  downloadSampleFile
 } from "../controllers/order.controller.js";
 
 const router = Router();
@@ -63,5 +64,12 @@ router.get("/fulfillment-report", getFulfillmentReport);
  * Download fulfillment report as Excel file — ungated, as above.
  */
 router.get("/fulfillment-report/download", downloadFulfillmentReport);
+
+/**
+ * GET /api/orders/sample-file
+ * The example spreadsheet, with the carrier dropdown — ungated, so a merchant
+ * can see the expected format before choosing a plan.
+ */
+router.get("/sample-file", downloadSampleFile);
 
 export default router;
