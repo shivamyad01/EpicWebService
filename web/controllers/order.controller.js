@@ -10,6 +10,7 @@ import {
   cleanupTempFile,
   processOrderFulfillment,
   getLastFulfillmentSummary,
+  getLastFulfillmentSavedAt,
   setFulfillmentSummary,
   generateFulfillmentReport
 } from "../services/fulfillment.service.js";
@@ -156,7 +157,7 @@ export const bulkFulfillOrders = async (req, res) => {
         results.push({
           orderNumber: String(order.OrderNumber || ""),
           trackingNumber: String(order.TrackingNumber || ""),
-          trackingCompany: order.TrackingCompany || "",
+          trackingCompany: order.ShippingCarrier || "",
           trackingUrl: "",
           error: "Not processed - the upload was interrupted. Re-upload these rows."
         });
@@ -208,7 +209,16 @@ export const bulkFulfillOrders = async (req, res) => {
 };
 
 /**
- * Get the last fulfillment report
+ * Get the last fulfillment report.
+ *
+ * Read by the upload page on load so a merchant who reloads — or whose plan has
+ * lapsed — still sees the run they already paid for. Both the paywall banner and
+ * the Plan page promise that reports "stay available", and until this was wired up
+ * nothing on the page fetched it, so the promise held only for as long as the tab
+ * stayed open.
+ *
+ * `savedAt` lets the page date a restored report instead of stamping it with the
+ * current time, which would read as though the run had just finished.
  */
 export const getFulfillmentReport = (req, res) => {
   const session = res.locals.shopify.session;
@@ -219,7 +229,10 @@ export const getFulfillmentReport = (req, res) => {
     return res.status(404).json({ message: "No fulfillment report available." });
   }
 
-  return res.status(200).json({ report: summary });
+  return res.status(200).json({
+    report: summary,
+    savedAt: getLastFulfillmentSavedAt(shop),
+  });
 };
 
 /**

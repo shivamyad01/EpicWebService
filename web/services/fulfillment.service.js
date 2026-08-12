@@ -103,6 +103,23 @@ export const getLastFulfillmentSummary = (shop) => {
 };
 
 /**
+ * When the stored report was last written.
+ *
+ * Taken from the file's mtime rather than kept inside the summary: the summary is
+ * an array of row results with nowhere to hang a timestamp, and a page showing a
+ * report restored after a reload has to say when that run happened instead of
+ * implying it just finished. Null when there is no file to read — the caller is
+ * expected to cope, since the in-memory copy can outlive a failed write.
+ */
+export const getLastFulfillmentSavedAt = (shop) => {
+  try {
+    return fs.statSync(reportPath(shop)).mtime.toISOString();
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Set the fulfillment summary for a shop, in memory and on disk.
  * A failed write must never fail the fulfillment run that produced the report.
  */
@@ -196,8 +213,26 @@ const columnPicker = (row) => {
 
 const ORDER_HEADERS = ['OrderNumber', 'Name', 'Order Number', 'order_number'];
 const NUMBER_HEADERS = ['TrackingNumber', 'Tracking Number', 'tracking_number'];
-const COMPANY_HEADERS = ['TrackingCompany', 'Tracking Company', 'tracking_company'];
 const URL_HEADERS = ['TrackingUrl', 'Tracking Url', 'Tracking URL', 'tracking_url'];
+
+/**
+ * The carrier column, under either name.
+ *
+ * "Shipping carrier" is what the Shopify admin calls this field, so the sample
+ * sheet and every label now say that too. The old TrackingCompany spellings stay
+ * accepted and are not deprecated in any way a merchant can see: sheets live in
+ * Downloads folders and get re-uploaded weeks later, and rejecting a file that
+ * worked last week is not an acceptable way to rename a column. New names first,
+ * so the error message below quotes the one the sample now ships with.
+ */
+const CARRIER_HEADERS = [
+  'ShippingCarrier',
+  'Shipping Carrier',
+  'shipping_carrier',
+  'TrackingCompany',
+  'Tracking Company',
+  'tracking_company',
+];
 
 /**
  * Parse Excel/CSV file and extract order data
@@ -227,8 +262,10 @@ export const parseExcelFile = (filePath) => {
     throw new Error('Missing required column: TrackingNumber (or Tracking Number)');
   }
 
-  if (!hasColumn(COMPANY_HEADERS)) {
-    throw new Error('Missing required column: TrackingCompany (or Tracking Company)');
+  if (!hasColumn(CARRIER_HEADERS)) {
+    throw new Error(
+      'Missing required column: ShippingCarrier (or Shipping Carrier, TrackingCompany)'
+    );
   }
 
   return rows
@@ -237,7 +274,7 @@ export const parseExcelFile = (filePath) => {
 
       const order = cellToText(pick(...ORDER_HEADERS));
       const number = cellToText(pick(...NUMBER_HEADERS));
-      const company = cellToText(pick(...COMPANY_HEADERS));
+      const carrier = cellToText(pick(...CARRIER_HEADERS));
       const url = cellToText(pick(...URL_HEADERS));
 
       return {
@@ -245,7 +282,7 @@ export const parseExcelFile = (filePath) => {
         // Couriers never use spaces inside an AWB, but merchants paste them in.
         // Left alone they would be percent-encoded into the tracking URL.
         TrackingNumber: number.text.replace(/\s+/g, ''),
-        TrackingCompany: company.text,
+        ShippingCarrier: carrier.text,
         TrackingUrl: url.text,
         parseError:
           (order.error && `Order Number ${order.error}`) ||
@@ -552,7 +589,7 @@ export const resolveCarrierName = (trackingCompany) => {
     return { name: known, isKnown: true };
   }
 
-  const alias = config.trackingCompanyAliases?.[lower];
+  const alias = config.carrierAliases?.[lower];
   if (alias) {
     return { name: alias, isKnown: config.shopifyTrackingCompanies.includes(alias) };
   }
@@ -743,7 +780,7 @@ export const processOrderFulfillment = async (
   const orderNumberRaw = String(order.OrderNumber || order.Name || "").trim();
   const orderNumber = parseOrderNumber(orderNumberRaw);
   const trackingNumber = (order.TrackingNumber || "").toString().trim();
-  const tracking = resolveTracking(trackingNumber, order.TrackingCompany, order.TrackingUrl);
+  const tracking = resolveTracking(trackingNumber, order.ShippingCarrier, order.TrackingUrl);
   const trackingCompany = tracking.company;
   let trackingUrl = tracking.url || "";
 
@@ -1019,7 +1056,7 @@ export const generateFulfillmentReport = (summary, options = {}) => {
 
   // Main data sheet
   const sheetData = [
-    ["Order Number", "Tracking Number", "Tracking Company", "Tracking URL", "Status", "Details", "Fulfillment ID", "Processed At"],
+    ["Order Number", "Tracking Number", "Shipping Carrier", "Tracking URL", "Status", "Details", "Fulfillment ID", "Processed At"],
     ...rows.map((r) => [
       r.orderNumber,
       r.trackingNumber || "",
@@ -1038,7 +1075,7 @@ export const generateFulfillmentReport = (summary, options = {}) => {
   worksheet['!cols'] = [
     { wch: 15 },  // Order Number
     { wch: 25 },  // Tracking Number
-    { wch: 15 },  // Tracking Company
+    { wch: 18 },  // Shipping Carrier
     { wch: 45 },  // Tracking URL
     { wch: 10 },  // Status
     { wch: 40 },  // Details
@@ -1075,6 +1112,7 @@ export const generateFulfillmentReport = (summary, options = {}) => {
 
 export default {
   getLastFulfillmentSummary,
+  getLastFulfillmentSavedAt,
   setFulfillmentSummary,
   deleteFulfillmentSummary,
   parseExcelFile,

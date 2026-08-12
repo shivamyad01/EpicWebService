@@ -19,10 +19,19 @@ export default function App() {
     <PolarisProvider>
       <BrowserRouter>
         <ErrorBoundary>
+          {/* Uploading is listed first because it is the job merchants come back
+              to do — finding orders is the step you need once, or when you have
+              lost track of what is outstanding. The home page names all three
+              routes, so nothing depends on this order to be discoverable.
+
+              The names themselves were the real problem here: "Fulfill Order"
+              (singular, for a bulk tool) sat one word away from "Orders to
+              fulfill". Each screen now has one name, used here, in its title bar,
+              and in its heading. */}
           <NavMenu>
             <a href="/" rel="home" />
             <a href="/fulfillorder">{t("NavigationMenu.fulfillOrder")}</a>
-            <a href="/orders">Orders to fulfill</a>
+            <a href="/orders">Find orders</a>
             {/* Hardcoded like Settings below — the locale files only carry the two
                 keys that were translated, and a half-translated key reads worse
                 than an untranslated one. */}

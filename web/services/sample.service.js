@@ -3,7 +3,7 @@
  *
  * The three visible sheets are the ones this file has always had, with the same
  * wording and the same column widths. The Orders sheet shows two rows, one per
- * case worth showing, and TrackingCompany carries a dropdown.
+ * case worth showing, and ShippingCarrier carries a dropdown.
  *
  * Two things forced the move off the browser and SheetJS. Its community build
  * cannot write data validations — `/* dataValidations *\/` is a commented-out
@@ -70,7 +70,7 @@ export const generateSampleWorkbook = async ({ rows, extraHeader } = {}) => {
 
   // ── Orders ────────────────────────────────────────────────────────────────
   const orders = workbook.addWorksheet("Orders");
-  const header = ["OrderNumber", "TrackingNumber", "TrackingCompany", "TrackingUrl"];
+  const header = ["OrderNumber", "TrackingNumber", "ShippingCarrier", "TrackingUrl"];
   // The parser reads columns by name and ignores the rest, so a reference column
   // like the order's date rides along without affecting the upload.
   if (extraHeader) header.push(extraHeader);
@@ -89,7 +89,7 @@ export const generateSampleWorkbook = async ({ rows, extraHeader } = {}) => {
   // ── Carriers ──────────────────────────────────────────────────────────────
   const carriersSheet = workbook.addWorksheet("Carriers");
   [
-    ["Carriers you can pick in the TrackingCompany dropdown"],
+    ["Carriers you can pick in the ShippingCarrier dropdown"],
     [
       'Every name below needs no TrackingUrl — the app works the tracking link out. The last entry, "Other", is for a carrier that is not on this list.',
     ],
@@ -122,7 +122,7 @@ export const generateSampleWorkbook = async ({ rows, extraHeader } = {}) => {
     ["OrderNumber", "Yes", "Order name as shown in Shopify, e.g. #1025 or V-304797"],
     ["TrackingNumber", "Yes", "AWB / consignment number"],
     [
-      "TrackingCompany",
+      "ShippingCarrier",
       "Yes",
       // Corrected from the previous sample, which said this was optional and that
       // a blank meant India Post. That stopped being true when the default

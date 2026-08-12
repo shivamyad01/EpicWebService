@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Page,
   Layout,
@@ -23,6 +23,7 @@ import { FileIcon, UploadIcon, XIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useNavigate } from "react-router-dom";
 import { safeFetchJson, safeFetchBlob } from "../utils/api.js";
+import { downloadSampleWorkbook } from "../utils/download.js";
 import {
   useBilling,
   openPricingPage,
@@ -107,6 +108,14 @@ export default function FulfillOrder() {
   const [notifyCustomer, setNotifyCustomer] = useState(false);
   const [touchedNotify, setTouchedNotify] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  // When the run on screen finished. Held in state rather than read from the clock
+  // at render time, so a report restored from a previous run is dated when it
+  // actually ran instead of being stamped with the moment you happened to look.
+  const [completedAt, setCompletedAt] = useState(null);
+  const [restored, setRestored] = useState(false);
+  // Set the instant an upload begins, so a slow restore cannot land on top of a
+  // fresher report. Same reasoning as `touchedNotify` below.
+  const runStarted = useRef(false);
   const billing = useBilling();
   const navigate = useNavigate();
   const itemsPerPage = 5;
@@ -138,6 +147,34 @@ export default function FulfillOrder() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Bring back the last run's report.
+  //
+  // The paywall banner and the Plan page both tell merchants their previous
+  // reports "stay available", and the server has kept them on disk all along — but
+  // nothing here ever asked for them, so the report vanished on the first reload
+  // and the promise was false for anyone whose plan had lapsed. This endpoint is
+  // deliberately outside the subscription gate for exactly that reason.
+  useEffect(() => {
+    let cancelled = false;
+
+    safeFetchJson("/api/orders/fulfillment-report")
+      .then(({ report, savedAt }) => {
+        // An upload that started while this was in flight owns the screen.
+        if (cancelled || runStarted.current || !report?.length) return;
+
+        setResult(report);
+        setCompletedAt(savedAt || null);
+        setRestored(true);
+      })
+      .catch(() => {
+        // A 404 here is the normal state for a shop that has never run an upload.
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // A run over a few hundred rows takes long enough that a static "processing"
@@ -192,9 +229,12 @@ export default function FulfillOrder() {
   const handleUpload = async () => {
     if (!file) return;
 
+    runStarted.current = true;
     setUploading(true);
     setError(null);
     setResult(null);
+    setRestored(false);
+    setCompletedAt(null);
 
     const formData = new FormData();
     formData.append("file", file);
@@ -207,6 +247,7 @@ export default function FulfillOrder() {
       });
 
       setResult(data.summary);
+      setCompletedAt(new Date().toISOString());
       // A new run is a new report. Without this a merchant left on page 3 of the
       // last one lands on an empty table when the new run has fewer rows.
       setCurrentPage(1);
@@ -222,23 +263,11 @@ export default function FulfillOrder() {
     }
   };
 
-  // Built and downloaded from the server. It carries a real in-cell dropdown of
-  // carrier names, which needs data validations that SheetJS's community build
-  // cannot write — and the list comes from the same server config the fulfilment
-  // service matches names against, so the two cannot drift apart. Building it
-  // here also meant shipping ~300KB of xlsx to every merchant who opened the page.
+  // Shared with the home page, which offers the same sample — see
+  // utils/download.js for why the workbook is built server-side.
   const handleDownloadSample = async () => {
     try {
-      const res = await safeFetchBlob("/api/orders/sample-file");
-      const url = window.URL.createObjectURL(await res.blob());
-      const link = document.createElement("a");
-
-      link.href = url;
-      link.setAttribute("download", "sample_bulk_fulfillment.xlsx");
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await downloadSampleWorkbook();
     } catch (err) {
       setError(err.message || "Could not download the sample file");
     }
@@ -304,9 +333,19 @@ export default function FulfillOrder() {
                 </Text>
               </Box>
               <Text as="h2" variant="headingMd">
-                Import Summary
+                {restored ? "Your last run" : "Import Summary"}
               </Text>
             </InlineStack>
+
+            {/* Said plainly, because the numbers below are identical either way and
+                a merchant returning to this page should not read a finished run as
+                one that just happened. */}
+            {restored && (
+              <Text as="p" variant="bodySm" tone="subdued">
+                Restored from your previous upload. Uploading a new sheet replaces
+                it.
+              </Text>
+            )}
 
             <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
               <Card background="bg-surface-secondary">
@@ -360,16 +399,21 @@ export default function FulfillOrder() {
                 </BlockStack>
                 <BlockStack gap="100">
                   <Text variant="bodySm" tone="subdued">
-                    Date
+                    {restored ? "Last run" : "Date"}
                   </Text>
                   <Text variant="bodyMd" fontWeight="medium">
-                    {new Date().toLocaleString("en-GB", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {/* An em dash when a restored report has no timestamp: the
+                        summary is kept in memory as well as on disk, so a failed
+                        write leaves rows to show and no date to show them under. */}
+                    {completedAt
+                      ? new Date(completedAt).toLocaleString("en-GB", {
+                          day: "numeric",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "—"}
                   </Text>
                 </BlockStack>
                 <BlockStack gap="100">
@@ -443,7 +487,7 @@ export default function FulfillOrder() {
                 { title: "#" },
                 { title: "Order #" },
                 { title: "Tracking #" },
-                { title: "Company" },
+                { title: "Shipping carrier" },
                 { title: "Status" },
                 { title: "Details" },
               ]}
@@ -526,7 +570,9 @@ export default function FulfillOrder() {
 
   return (
     <Page fullWidth>
-      <TitleBar title="Epic Fulfill: Bulk Orders" />
+      {/* Same name as the nav item and the card heading below. This screen used to
+          answer to three different names depending on where you read it. */}
+      <TitleBar title="Upload & fulfill" />
       <style>{UPLOAD_STYLES}</style>
 
       <Layout>

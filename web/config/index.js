@@ -301,7 +301,7 @@ export const config = {
   // Shopify's own dropdown uses, so we normalize the casing to match what a
   // merchant would see there. It still requires a TrackingUrl, since Shopify
   // cannot derive a link from it.
-  trackingCompanyAliases: {
+  carrierAliases: {
     other: "Other",
     "blue dart": "Bluedart",
     "bluedart express": "Bluedart",
