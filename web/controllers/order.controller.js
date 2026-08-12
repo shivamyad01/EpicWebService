@@ -16,7 +16,7 @@ import {
 import { generateSampleWorkbook } from "../services/sample.service.js";
 import {
   countOrdersByStatus,
-  fetchOrdersInRange,
+  fetchOrdersForStatus,
   validateRange,
   STATUS_FILTERS,
 } from "../services/pendingOrders.service.js";
@@ -246,14 +246,27 @@ export const listPendingOrders = async (req, res) => {
 
     const [counts, listing] = await Promise.all([
       countOrdersByStatus(client, range),
-      fetchOrdersInRange(client, { ...range, status }),
+      fetchOrdersForStatus(client, { ...range, status }),
     ]);
+
+    // The missing-tracking count cannot come from ordersCount — no search filter
+    // expresses it — so it is whatever the scan turned up, and it is only honest
+    // to call it exact when the scan reached the end of the range. It is absent
+    // from the other buckets' responses rather than zero: "none found" and "not
+    // looked for" must not read the same.
+    if (status === "untracked") {
+      counts.untracked = {
+        count: listing.orders.length,
+        exact: !listing.truncated,
+      };
+    }
 
     return res.status(200).json({
       counts,
       status,
       orders: listing.orders,
       truncated: listing.truncated,
+      scanned: listing.scanned,
       limit: config.fulfillment.maxOrdersPerRequest,
     });
   } catch (err) {
@@ -287,7 +300,7 @@ export const downloadPendingOrdersSheet = async (req, res) => {
       : "unfulfilled";
 
     const client = new shopify.api.clients.Graphql({ session });
-    const fetched = await fetchOrdersInRange(client, {
+    const fetched = await fetchOrdersForStatus(client, {
       from: range.from,
       to: range.to,
       status,
@@ -324,9 +337,15 @@ export const downloadPendingOrdersSheet = async (req, res) => {
       extraHeader: "Order Date",
     });
 
+    // Named for what the rows are, since these two sheets are worked on
+    // differently: one gets tracking for orders that have not shipped, the other
+    // supplies tracking for orders that already did.
+    const basename =
+      status === "untracked" ? "orders_missing_tracking" : "orders_to_fulfill";
+
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename=orders_to_fulfill_${range.from.slice(0, 10)}_to_${range.to.slice(0, 10)}.xlsx`
+      `attachment; filename=${basename}_${range.from.slice(0, 10)}_to_${range.to.slice(0, 10)}.xlsx`
     );
     res.setHeader(
       "Content-Type",

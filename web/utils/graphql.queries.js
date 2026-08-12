@@ -103,6 +103,51 @@ export const SEARCH_PENDING_ORDERS = `
 `;
 
 /**
+ * Orders plus the tracking already on them, for the "missing tracking" bucket.
+ *
+ * Shopify's order search cannot ask whether a fulfillment carries a tracking
+ * number — there is no `tracking_number:` filter to negate — so the only way to
+ * find these is to read the fulfillments and decide here. That is why this is a
+ * separate query from SEARCH_PENDING_ORDERS rather than fields added to it: the
+ * other three buckets need none of this and should not pay for it.
+ *
+ * 50 orders a page, not 250. Each order now drags its fulfillments and their
+ * trackingInfo objects along with it, and every object is a point against the
+ * calculated query cost. At 250 a busy store's page could outgrow the 1000-point
+ * bucket and start coming back throttled; at 50 a typical page costs a few
+ * hundred even for orders shipped in several parcels.
+ *
+ * `status` is read so cancelled fulfillments can be discarded: they still appear
+ * here, and one with no tracking number would otherwise look like work to do.
+ */
+export const SEARCH_ORDERS_WITH_TRACKING = `
+  query OrdersWithTracking($query: String!, $cursor: String) {
+    orders(first: 50, query: $query, after: $cursor, sortKey: CREATED_AT) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          id
+          name
+          createdAt
+          displayFulfillmentStatus
+          fulfillments(first: 10) {
+            id
+            status
+            createdAt
+            trackingInfo {
+              number
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+/**
  * How many orders sit in each bucket for a date range.
  *
  * ordersCount answers in one request what paging the orders connection would
@@ -124,5 +169,6 @@ export default {
   CREATE_FULFILLMENT,
   SEARCH_ORDER_BY_NAME,
   SEARCH_PENDING_ORDERS,
+  SEARCH_ORDERS_WITH_TRACKING,
   COUNT_ORDERS_BY_STATUS
 };
