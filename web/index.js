@@ -17,7 +17,6 @@ import { upgradeTokenAfterOAuth } from "./middleware/token.middleware.js";
 import { authenticateApiRequest, ensureEmbedded } from "./middleware/auth.middleware.js";
 import { preloadTagsFor } from "./utils/assetPreload.js";
 import { reconcileOrphanedRuns } from "./services/run.service.js";
-import { sweepStaleUploads } from "./middleware/upload.middleware.js";
 
 const app = express();
 
@@ -173,9 +172,6 @@ app.use((err, req, res, next) => {
 // "started, never finished" belonged to the process this one replaced. Closing those
 // out here is what stops a half-written report being shown as a complete run.
 reconcileOrphanedRuns();
-
-// Sheets belonging to those dead runs are still on the uploads volume.
-sweepStaleUploads();
 
 const server = app.listen(config.port, "0.0.0.0", () => {
   console.log(`🚀 Server is running on port ${config.port}`);

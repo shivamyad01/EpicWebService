@@ -12,7 +12,6 @@ import {
   getLastFulfillmentSummary,
   getLastFulfillmentSavedAt,
   setFulfillmentSummary,
-  deleteFulfillmentSummary,
   generateFulfillmentReport
 } from "../services/fulfillment.service.js";
 import { generateSampleWorkbook } from "../services/sample.service.js";
@@ -133,12 +132,6 @@ export const bulkFulfillOrders = async (req, res) => {
         },
       });
     }
-
-    // The previous run's report goes now, not when the first batch happens to
-    // overwrite it. Only one run is ever kept, and from the moment a new one starts
-    // the old one is stale — leaving it on disk meant the page could fetch it and
-    // show last week's results beside a progress bar for the sheet running now.
-    deleteFulfillmentSummary(shop);
 
     // The run does not stop when the browser does. nginx cuts the request at 300s and
     // the merchant may have closed the app long before, but the sheet is parsed and
