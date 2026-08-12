@@ -75,9 +75,14 @@ router.get("/fulfillment-report/download", downloadFulfillmentReport);
 router.get("/sample-file", downloadSampleFile);
 
 /**
- * GET /api/orders/pending-sheet?from=&to=&includePartial=
+ * GET /api/orders/pending-sheet?from=&to=&status=
  * The same workbook as the sample, with OrderNumber already filled in from the
- * orders still waiting to be fulfilled. Ungated, like the two downloads above.
+ * orders in the requested bucket. Ungated, like the two downloads above.
+ *
+ * `status` is one of STATUS_FILTERS: unfulfilled | fulfilled | untracked | all.
+ * `untracked` is the shipped-but-no-tracking-number bucket, whose rows the bulk
+ * upload resolves by attaching tracking to the existing fulfillment rather than
+ * creating a new one.
  */
 router.get("/pending-sheet", downloadPendingOrdersSheet);
 
@@ -89,8 +94,12 @@ router.get("/pending-sheet", downloadPendingOrdersSheet);
 router.post("/pending-sheet", downloadPendingOrdersSheet);
 
 /**
- * GET /api/orders/pending?from=&to=&includePartial=
- * The same orders as JSON, for the Orders page to list before downloading.
+ * GET /api/orders/pending?from=&to=&status=
+ * The same orders as JSON, for the Orders page to list before downloading, plus
+ * per-bucket counts for the range.
+ *
+ * `counts.untracked` is present only when status=untracked was asked for: it is
+ * produced by the scan itself, since no count query can express "has no tracking".
  */
 router.get("/pending", listPendingOrders);
 
