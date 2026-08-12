@@ -143,7 +143,7 @@ export default function Feedback() {
 
   const renderRatingStars = () => (
     <BlockStack gap="200">
-      <Text variant="bodyMd" tone="subdued">
+      <Text as="p" variant="bodyMd" tone="subdued">
         How would you rate your experience?
       </Text>
       <InlineStack gap="100">
