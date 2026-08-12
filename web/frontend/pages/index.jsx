@@ -1,4 +1,6 @@
+import { useState } from "react";
 import {
+  Banner,
   BlockStack,
   Box,
   Button,
@@ -11,6 +13,7 @@ import {
 } from "@shopify/polaris";
 import {
   AlertTriangleIcon,
+  ArrowDownIcon,
   ClipboardIcon,
   DeliveryIcon,
   EmailIcon,
@@ -22,6 +25,8 @@ import {
 } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useNavigate } from "react-router-dom";
+
+import { downloadSampleWorkbook } from "../utils/download.js";
 
 /**
  * Everything here is built from Polaris primitives and design tokens rather than
@@ -121,24 +126,55 @@ const IconTile = ({ source }) => (
 
 export default function BulkOrderFulfillmentPage() {
   const navigate = useNavigate();
+  const [downloading, setDownloading] = useState(false);
+  const [error, setError] = useState(null);
 
-  // The primary action is finding orders, not uploading. Both buttons used to go
-  // straight to the upload page, which needs a filled-in spreadsheet the merchant
-  // does not have yet — so the one screen that produces that sheet was reachable
-  // only from the nav menu, and a new merchant's first move was to type order
-  // numbers by hand into the sample file. That is the step most "Order not found"
-  // rows come from, and the app already has the feature that removes it.
-  const findOrders = () => navigate("/orders");
   const uploadSheet = () => navigate("/fulfillorder");
+  const findOrders = () => navigate("/orders");
 
-  /** Both call-to-action pairs, so the top and bottom of the page cannot drift. */
-  const Actions = () => (
+  const handleDownloadSample = async () => {
+    setDownloading(true);
+    setError(null);
+
+    try {
+      await downloadSampleWorkbook();
+    } catch (err) {
+      setError(err.message || "Could not download the sample file");
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  /**
+   * The three ways in, offered together.
+   *
+   * This page used to lead with uploading and nothing else, which sent merchants
+   * to a drop zone needing a spreadsheet they had no way to get — the screen that
+   * builds one was reachable only from the nav menu. Naming all three routes here
+   * is what fixes that: whichever state a merchant arrives in, the next step is on
+   * screen. Rendered from one place so the top and bottom of the page cannot drift
+   * apart.
+   *
+   * A function rather than a component used as a JSX tag: a component defined in
+   * the render body is a new type on every pass, so React would unmount and remount
+   * these buttons each time — taking focus off the one just clicked the moment
+   * `downloading` flips it into its loading state.
+   */
+  const renderActions = () => (
     <InlineStack gap="300" wrap>
-      <Button variant="primary" size="large" icon={SearchIcon} onClick={findOrders}>
+      <Button variant="primary" size="large" icon={UploadIcon} onClick={uploadSheet}>
+        Upload and fulfill
+      </Button>
+      <Button size="large" icon={SearchIcon} onClick={findOrders}>
         Find your orders
       </Button>
-      <Button size="large" icon={UploadIcon} onClick={uploadSheet}>
-        I already have a sheet
+      <Button
+        size="large"
+        icon={ArrowDownIcon}
+        onClick={handleDownloadSample}
+        loading={downloading}
+      >
+        Download sample
       </Button>
     </InlineStack>
   );
@@ -151,6 +187,16 @@ export default function BulkOrderFulfillmentPage() {
       <TitleBar title="Epic Fulfill" />
 
       <BlockStack gap="800">
+        {error && (
+          <Banner
+            title="Couldn't download the sample"
+            tone="critical"
+            onDismiss={() => setError(null)}
+          >
+            <p>{error}</p>
+          </Banner>
+        )}
+
         <Box
           background="bg-surface-brand"
           borderRadius="300"
@@ -167,7 +213,7 @@ export default function BulkOrderFulfillmentPage() {
                 filled in, add tracking numbers, and upload the sheet. Hundreds of
                 orders go out in one run.
               </Text>
-              <Actions />
+              {renderActions()}
             </BlockStack>
           </Box>
         </Box>
@@ -229,7 +275,7 @@ export default function BulkOrderFulfillmentPage() {
                   does for you.
                 </Text>
               </Box>
-              <Actions />
+              {renderActions()}
             </BlockStack>
           </Box>
         </Card>

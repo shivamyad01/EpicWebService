@@ -23,6 +23,7 @@ import { FileIcon, UploadIcon, XIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
 import { useNavigate } from "react-router-dom";
 import { safeFetchJson, safeFetchBlob } from "../utils/api.js";
+import { downloadSampleWorkbook } from "../utils/download.js";
 import {
   useBilling,
   openPricingPage,
@@ -262,23 +263,11 @@ export default function FulfillOrder() {
     }
   };
 
-  // Built and downloaded from the server. It carries a real in-cell dropdown of
-  // carrier names, which needs data validations that SheetJS's community build
-  // cannot write — and the list comes from the same server config the fulfilment
-  // service matches names against, so the two cannot drift apart. Building it
-  // here also meant shipping ~300KB of xlsx to every merchant who opened the page.
+  // Shared with the home page, which offers the same sample — see
+  // utils/download.js for why the workbook is built server-side.
   const handleDownloadSample = async () => {
     try {
-      const res = await safeFetchBlob("/api/orders/sample-file");
-      const url = window.URL.createObjectURL(await res.blob());
-      const link = document.createElement("a");
-
-      link.href = url;
-      link.setAttribute("download", "sample_bulk_fulfillment.xlsx");
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      await downloadSampleWorkbook();
     } catch (err) {
       setError(err.message || "Could not download the sample file");
     }
