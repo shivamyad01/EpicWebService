@@ -75,8 +75,54 @@ export const SEARCH_ORDER_BY_NAME = `
   }
 `;
 
+/**
+ * Orders still waiting to be fulfilled, for the pre-filled sheet.
+ *
+ * Only the name and date are read. A customer name would be more informative in
+ * the sheet, but `customer` needs the read_customers scope, and adding a scope
+ * re-prompts every merchant to approve the app — too high a price for a
+ * reference column.
+ */
+export const SEARCH_PENDING_ORDERS = `
+  query PendingOrders($query: String!, $cursor: String) {
+    orders(first: 250, query: $query, after: $cursor, sortKey: CREATED_AT) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          id
+          name
+          createdAt
+          displayFulfillmentStatus
+        }
+      }
+    }
+  }
+`;
+
+/**
+ * How many orders sit in each bucket for a date range.
+ *
+ * ordersCount answers in one request what paging the orders connection would
+ * need dozens of round trips to work out, and the page only needs the numbers to
+ * show a summary — the rows themselves are fetched for whichever bucket the
+ * merchant actually picks.
+ */
+export const COUNT_ORDERS_BY_STATUS = `
+  query OrderCounts($all: String!, $unfulfilled: String!, $partial: String!, $fulfilled: String!) {
+    total: ordersCount(query: $all) { count precision }
+    unfulfilled: ordersCount(query: $unfulfilled) { count precision }
+    partial: ordersCount(query: $partial) { count precision }
+    fulfilled: ordersCount(query: $fulfilled) { count precision }
+  }
+`;
+
 export default {
   GET_FULFILLMENT_ORDERS,
   CREATE_FULFILLMENT,
-  SEARCH_ORDER_BY_NAME
+  SEARCH_ORDER_BY_NAME,
+  SEARCH_PENDING_ORDERS,
+  COUNT_ORDERS_BY_STATUS
 };

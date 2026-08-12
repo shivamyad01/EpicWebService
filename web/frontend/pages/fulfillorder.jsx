@@ -583,6 +583,25 @@ export default function FulfillOrder() {
 
         <Layout.Section>
           <Card>
+            <InlineStack align="space-between" blockAlign="center" gap="300" wrap>
+              <BlockStack gap="100">
+                <Text as="h2" variant="headingMd">
+                  Don't have a sheet yet?
+                </Text>
+                <Text as="p" variant="bodySm" tone="subdued">
+                  Download your unfulfilled orders with the order numbers already
+                  filled in — then you only add tracking numbers.
+                </Text>
+              </BlockStack>
+              <Button onClick={() => navigate("/orders")}>
+                Orders to fulfill
+              </Button>
+            </InlineStack>
+          </Card>
+        </Layout.Section>
+
+        <Layout.Section>
+          <Card>
             <BlockStack gap="400">
               <BlockStack gap="100">
                 <Text as="h2" variant="headingMd">

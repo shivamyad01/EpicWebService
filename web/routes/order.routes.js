@@ -11,7 +11,9 @@ import {
   bulkFulfillOrders,
   getFulfillmentReport,
   downloadFulfillmentReport,
-  downloadSampleFile
+  downloadSampleFile,
+  downloadPendingOrdersSheet,
+  listPendingOrders
 } from "../controllers/order.controller.js";
 
 const router = Router();
@@ -71,5 +73,25 @@ router.get("/fulfillment-report/download", downloadFulfillmentReport);
  * can see the expected format before choosing a plan.
  */
 router.get("/sample-file", downloadSampleFile);
+
+/**
+ * GET /api/orders/pending-sheet?from=&to=&includePartial=
+ * The same workbook as the sample, with OrderNumber already filled in from the
+ * orders still waiting to be fulfilled. Ungated, like the two downloads above.
+ */
+router.get("/pending-sheet", downloadPendingOrdersSheet);
+
+/**
+ * POST /api/orders/pending-sheet
+ * As above, but the body may carry `only: ["V-305596", ...]` to narrow the
+ * sheet to the orders the merchant selected on the Orders page.
+ */
+router.post("/pending-sheet", downloadPendingOrdersSheet);
+
+/**
+ * GET /api/orders/pending?from=&to=&includePartial=
+ * The same orders as JSON, for the Orders page to list before downloading.
+ */
+router.get("/pending", listPendingOrders);
 
 export default router;

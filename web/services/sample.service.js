@@ -35,9 +35,32 @@ const VALIDATED_ROWS = 2000;
 const CARRIER_BLOCK_START = 5;
 
 /**
+ * The two rows the blank sample ships with — one per case worth showing.
+ */
+const EXAMPLE_ROWS = [
+  // A carrier from the dropdown needs no link: the app works it out.
+  ["#1025", "FX123456789IN", "FedEx", ""],
+  // Anything else needs one. The link ends where the number goes — the app
+  // appends each row's own tracking number, so one value can be copied down the
+  // whole column.
+  ["#1026", "JCW90000000001", OTHER, "https://jcwexpress.com/tracking?codes="],
+];
+
+/**
+ * Build the upload workbook.
+ *
+ * The same three sheets and the same carrier dropdown serve both the blank
+ * sample and the sheet pre-filled with a merchant's pending orders — the only
+ * difference is what the Orders sheet already contains. Two builders would mean
+ * the pre-filled one quietly losing a column the sample gained.
+ *
+ * @param {object}  [options]
+ * @param {Array}   [options.rows]        Orders rows, as [order, tracking, company, url]
+ * @param {string}  [options.extraHeader] A fifth, ignored-on-upload reference column
  * @returns {Promise<Buffer>} the .xlsx file
  */
-export const generateSampleWorkbook = async () => {
+export const generateSampleWorkbook = async ({ rows, extraHeader } = {}) => {
+  const orderRows = rows?.length ? rows : EXAMPLE_ROWS;
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Epic Fulfill";
   workbook.created = new Date();
@@ -47,18 +70,20 @@ export const generateSampleWorkbook = async () => {
 
   // ── Orders ────────────────────────────────────────────────────────────────
   const orders = workbook.addWorksheet("Orders");
-  [
-    ["OrderNumber", "TrackingNumber", "TrackingCompany", "TrackingUrl"],
-    // Two rows, because there are only two cases to show. A carrier from the
-    // dropdown needs no link — the app works it out.
-    ["#1025", "FX123456789IN", "FedEx", ""],
-    // And anything else needs one. The link ends where the number goes: the app
-    // appends each row's own tracking number to it, so the same value can be
-    // copied down the whole column.
-    ["#1026", "JCW90000000001", OTHER, "https://jcwexpress.com/tracking?codes="],
-  ].forEach((row) => orders.addRow(row));
+  const header = ["OrderNumber", "TrackingNumber", "TrackingCompany", "TrackingUrl"];
+  // The parser reads columns by name and ignores the rest, so a reference column
+  // like the order's date rides along without affecting the upload.
+  if (extraHeader) header.push(extraHeader);
 
-  orders.columns = [{ width: 15 }, { width: 22 }, { width: 18 }, { width: 45 }];
+  [header, ...orderRows].forEach((row) => orders.addRow(row));
+
+  orders.columns = [
+    { width: 15 },
+    { width: 22 },
+    { width: 18 },
+    { width: 45 },
+    ...(extraHeader ? [{ width: 18 }] : []),
+  ];
   orders.getRow(1).font = { bold: true };
 
   // ── Carriers ──────────────────────────────────────────────────────────────
@@ -165,8 +190,10 @@ export const generateSampleWorkbook = async () => {
   // carrier that Shopify does not know is a supported way to work as long as
   // TrackingUrl is filled in. Rejecting it here would break that.
   const blockEnd = CARRIER_BLOCK_START + options.length - 1;
+  // Far enough for the rows already in the sheet, plus room to paste more.
+  const lastValidatedRow = Math.max(VALIDATED_ROWS, orderRows.length + 50);
 
-  orders.dataValidations.add(`C2:C${VALIDATED_ROWS}`, {
+  orders.dataValidations.add(`C2:C${lastValidatedRow}`, {
     type: "list",
     allowBlank: true,
     formulae: [`Carriers!$A$${CARRIER_BLOCK_START}:$A$${blockEnd}`],

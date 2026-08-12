@@ -14,6 +14,12 @@ import {
   generateFulfillmentReport
 } from "../services/fulfillment.service.js";
 import { generateSampleWorkbook } from "../services/sample.service.js";
+import {
+  countOrdersByStatus,
+  fetchOrdersInRange,
+  validateRange,
+  STATUS_FILTERS,
+} from "../services/pendingOrders.service.js";
 
 // Batch processing configuration. Taken from config rather than declared again
 // here — config.fulfillment already carries these numbers, and a second copy is
@@ -217,6 +223,129 @@ export const getFulfillmentReport = (req, res) => {
 };
 
 /**
+ * What is in a date range: how many orders sit in each bucket, and the rows of
+ * whichever bucket was asked for.
+ *
+ * The counts come from ordersCount, so the summary is cheap even for a month of
+ * a busy store; only the chosen bucket is paged through.
+ */
+export const listPendingOrders = async (req, res) => {
+  const session = res.locals.shopify.session;
+
+  const range = validateRange(req.query.from, req.query.to);
+  if (range.error) {
+    return res.status(400).json({ error: range.error });
+  }
+
+  const status = STATUS_FILTERS.includes(req.query.status)
+    ? req.query.status
+    : "unfulfilled";
+
+  try {
+    const client = new shopify.api.clients.Graphql({ session });
+
+    const [counts, listing] = await Promise.all([
+      countOrdersByStatus(client, range),
+      fetchOrdersInRange(client, { ...range, status }),
+    ]);
+
+    return res.status(200).json({
+      counts,
+      status,
+      orders: listing.orders,
+      truncated: listing.truncated,
+      limit: config.fulfillment.maxOrdersPerRequest,
+    });
+  } catch (err) {
+    console.error("[orders] could not list orders:", err.message);
+    return res.status(502).json({
+      error: "Could not read your orders from Shopify. Try again in a moment.",
+    });
+  }
+};
+
+/**
+ * Download a sheet of the orders still waiting to be fulfilled.
+ *
+ * The same workbook as the sample — same columns, same carrier dropdown — with
+ * the OrderNumber column already filled in from the shop. A merchant pastes in
+ * tracking numbers, picks carriers from the dropdown, and uploads it back, never
+ * having typed an order number. Mistyped order names are the most common failed
+ * row there is, and this removes the step that produces them.
+ */
+export const downloadPendingOrdersSheet = async (req, res) => {
+  const session = res.locals.shopify.session;
+
+  const range = validateRange(req.query.from, req.query.to);
+  if (range.error) {
+    return res.status(400).json({ error: range.error });
+  }
+
+  try {
+    const status = STATUS_FILTERS.includes(req.query.status)
+      ? req.query.status
+      : "unfulfilled";
+
+    const client = new shopify.api.clients.Graphql({ session });
+    const fetched = await fetchOrdersInRange(client, {
+      from: range.from,
+      to: range.to,
+      status,
+    });
+
+    // `only` narrows the sheet to the rows the merchant ticked. The orders are
+    // still read from Shopify rather than taken from the request, so the sheet
+    // reflects what is actually pending now, not what the page showed a few
+    // minutes ago.
+    const wanted = req.body?.only;
+    const orders = Array.isArray(wanted) && wanted.length
+      ? fetched.orders.filter((order) => wanted.includes(order.name))
+      : fetched.orders;
+    const truncated = fetched.truncated && orders === fetched.orders;
+
+    if (orders.length === 0) {
+      return res.status(404).json({
+        message: "No orders match that range. Try a wider one, or a different status.",
+      });
+    }
+
+    // Date only, no time: it is there to help the merchant recognise a row, and
+    // a timestamp would just be noise in a column they never edit.
+    const rows = orders.map((order) => [
+      order.name,
+      "",
+      "",
+      "",
+      order.createdAt.slice(0, 10),
+    ]);
+
+    const buffer = await generateSampleWorkbook({
+      rows,
+      extraHeader: "Order Date",
+    });
+
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=orders_to_fulfill_${range.from.slice(0, 10)}_to_${range.to.slice(0, 10)}.xlsx`
+    );
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    // Read by the frontend so it can tell the merchant the list was cut short.
+    res.setHeader("X-Order-Count", String(orders.length));
+    res.setHeader("X-Order-Truncated", truncated ? "1" : "0");
+
+    return res.send(Buffer.from(buffer));
+  } catch (err) {
+    console.error("[pendingOrders] could not build the sheet:", err.message);
+    return res.status(502).json({
+      error: "Could not read your orders from Shopify. Try again in a moment.",
+    });
+  }
+};
+
+/**
  * Download the sample spreadsheet.
  *
  * Built on the server so its carrier dropdown is filled from the same config the
@@ -296,5 +425,7 @@ export default {
   bulkFulfillOrders,
   getFulfillmentReport,
   downloadFulfillmentReport,
-  downloadSampleFile
+  downloadSampleFile,
+  downloadPendingOrdersSheet,
+  listPendingOrders
 };
