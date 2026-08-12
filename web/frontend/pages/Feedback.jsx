@@ -35,6 +35,20 @@ const FEEDBACK_TYPES = [
 
 const RATINGS = [1, 2, 3, 4, 5];
 
+/**
+ * Where feedback is posted.
+ *
+ * Overridable at build time so the endpoint can be changed without editing a
+ * component, and so a fork is not silently posting into someone else's inbox. The
+ * literal is the fallback because that is what shipped before this was configurable.
+ */
+const FEEDBACK_ENDPOINT =
+  import.meta.env?.VITE_FEEDBACK_ENDPOINT ||
+  "https://script.google.com/macros/s/AKfycbxsLd3ovlX-n-BhRzPq332JhN8i7CHqLFWlDGI_tV7AlvDFmo9XdmCz9h58k0tsUccgPw/exec";
+
+/** Shown when the submission does not get through, so the merchant has a way out. */
+const SUPPORT_EMAIL = "support@epicfulfill.com";
+
 export default function Feedback() {
   const [formData, setFormData] = useState({
     name: "",
@@ -107,17 +121,22 @@ export default function Feedback() {
     setIsSubmitting(true);
 
     try {
-      await fetch(
-        "https://script.google.com/macros/s/AKfycbxsLd3ovlX-n-BhRzPq332JhN8i7CHqLFWlDGI_tV7AlvDFmo9XdmCz9h58k0tsUccgPw/exec",
-        {
-          method: "POST",
-          headers: { "Content-Type": "text/plain" },
-          body: JSON.stringify({
-            ...formData,
-            timestamp: new Date().toISOString(),
-          }),
-        }
-      );
+      // The response was previously ignored, so a rejected or failing endpoint still
+      // produced "Thank you for your feedback!" — the merchant walked away believing
+      // a bug report had been filed when nothing had been recorded. Anything other
+      // than a 2xx is a failure and has to be shown as one.
+      const response = await fetch(FEEDBACK_ENDPOINT, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain" },
+        body: JSON.stringify({
+          ...formData,
+          timestamp: new Date().toISOString(),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`The feedback service replied ${response.status}`);
+      }
 
       setSubmitted(true);
       setFormData({
@@ -133,9 +152,12 @@ export default function Feedback() {
         feedback: false,
       });
     } catch (err) {
+      // Name the way out. "Try again later" on its own leaves a merchant with a bug
+      // report and nowhere to put it.
       setError(
-        "We're having trouble submitting your feedback. Please try again later."
+        `We couldn't send your feedback. Please try again, or email us at ${SUPPORT_EMAIL}.`
       );
+      console.error("[feedback] submission failed:", err.message);
     } finally {
       setIsSubmitting(false);
     }
@@ -146,26 +168,20 @@ export default function Feedback() {
       <Text as="p" variant="bodyMd" tone="subdued">
         How would you rate your experience?
       </Text>
+      {/* Polaris Buttons rather than hand-styled <button>s: these carry the admin's
+          focus ring and hit area, follow the merchant's theme instead of hardcoded
+          styles, and `pressed` publishes aria-pressed so the chosen rating is
+          announced rather than only coloured in. */}
       <InlineStack gap="100">
         {RATINGS.map((star) => (
-          <button
+          <Button
             key={star}
+            variant="tertiary"
+            icon={star <= formData.rating ? StarFilledIcon : StarIcon}
+            accessibilityLabel={`Rate ${star} out of 5`}
+            pressed={star === formData.rating}
             onClick={() => handleChange("rating")(star)}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              padding: "4px",
-            }}
-            aria-label={`Rate ${star} out of 5`}
-          >
-            <Icon
-              source={
-                star <= formData.rating ? StarFilledIcon : StarIcon
-              }
-              tone={star <= formData.rating ? "warning" : "base"}
-            />
-          </button>
+          />
         ))}
       </InlineStack>
     </BlockStack>
