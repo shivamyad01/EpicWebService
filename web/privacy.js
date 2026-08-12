@@ -1,7 +1,6 @@
 import { DeliveryMethod } from "@shopify/shopify-api";
 
 import { deleteFulfillmentSummary } from "./services/fulfillment.service.js";
-import { deleteRunRecord } from "./services/run.service.js";
 import { deleteSettings } from "./services/settings.service.js";
 import { invalidateSubscription } from "./services/billing.service.js";
 
@@ -17,13 +16,12 @@ import { invalidateSubscription } from "./services/billing.service.js";
  * added to it that is not deleted below is data left behind after a merchant asked
  * for it to be gone:
  *   - reports/{shop}.json      the last run's report. Shop data. Deleted below.
- *   - reports/{shop}.run.json  that run's status and counts. Deleted below.
  *   - shop_settings (sqlite)   the notification preference. Deleted below.
  *   - the session store        access token per shop. Deleted by the SDK's own
  *                              app/uninstalled handler, before redaction is due.
- *   - an in-memory cache       subscription state, the last report and any live
- *                              run, dropped here too so a restart cannot
- *                              resurrect them.
+ *   - an in-memory cache       subscription state and the last report, both
+ *                              dropped here too so a restart cannot resurrect
+ *                              either.
  *
  * No customer names, emails, phone numbers or addresses are ever read or kept —
  * the app works from order names and tracking numbers a merchant types into a
@@ -94,12 +92,6 @@ export default {
         if (deleteFulfillmentSummary(shop)) removed.push("report");
       } catch (err) {
         console.error(`[privacy] ${shop}: could not delete the report:`, err.message);
-      }
-
-      try {
-        if (deleteRunRecord(shop)) removed.push("run record");
-      } catch (err) {
-        console.error(`[privacy] ${shop}: could not delete the run record:`, err.message);
       }
 
       try {
