@@ -487,7 +487,7 @@ export default function FulfillOrder() {
                 { title: "#" },
                 { title: "Order #" },
                 { title: "Tracking #" },
-                { title: "Company" },
+                { title: "Shipping carrier" },
                 { title: "Status" },
                 { title: "Details" },
               ]}

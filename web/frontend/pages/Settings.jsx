@@ -140,7 +140,7 @@ export default function Settings() {
                 Carrier
               </Text>
               <Text as="p" tone="subdued">
-                Every row needs a carrier in its Tracking Company column. There is no
+                Every row needs a carrier in its Shipping carrier column. There is no
                 default: a blank carrier fails that row rather than shipping the
                 order under one you did not choose.
               </Text>

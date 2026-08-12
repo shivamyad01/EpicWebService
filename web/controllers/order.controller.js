@@ -157,7 +157,7 @@ export const bulkFulfillOrders = async (req, res) => {
         results.push({
           orderNumber: String(order.OrderNumber || ""),
           trackingNumber: String(order.TrackingNumber || ""),
-          trackingCompany: order.TrackingCompany || "",
+          trackingCompany: order.ShippingCarrier || "",
           trackingUrl: "",
           error: "Not processed - the upload was interrupted. Re-upload these rows."
         });
