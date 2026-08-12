@@ -18,6 +18,8 @@ import {
   IndexTable,
   Pagination,
   Link,
+  SkeletonBodyText,
+  SkeletonDisplayText,
 } from "@shopify/polaris";
 import { FileIcon, UploadIcon, XIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
@@ -113,6 +115,11 @@ export default function FulfillOrder() {
   // actually ran instead of being stamped with the moment you happened to look.
   const [completedAt, setCompletedAt] = useState(null);
   const [restored, setRestored] = useState(false);
+  // True until the last run's report has been asked for and answered. Without it the
+  // page rendered with nothing where the report goes and then popped the whole card
+  // in once the request landed, which reads as the app being slow rather than as
+  // something arriving.
+  const [restoring, setRestoring] = useState(true);
   // Set the instant an upload begins, so a slow restore cannot land on top of a
   // fresher report. Same reasoning as `touchedNotify` below.
   const runStarted = useRef(false);
@@ -170,6 +177,9 @@ export default function FulfillOrder() {
       })
       .catch(() => {
         // A 404 here is the normal state for a shop that has never run an upload.
+      })
+      .finally(() => {
+        if (!cancelled) setRestoring(false);
       });
 
     return () => {
@@ -230,6 +240,9 @@ export default function FulfillOrder() {
     if (!file) return;
 
     runStarted.current = true;
+    // An upload owns the screen from here; a restore that has not landed yet must
+    // not leave a placeholder sitting under the run in progress.
+    setRestoring(false);
     setUploading(true);
     setError(null);
     setResult(null);
@@ -299,42 +312,66 @@ export default function FulfillOrder() {
   };
 
   
+  /**
+   * Holds the space the last run's report is about to fill.
+   *
+   * Shaped like the summary card — a heading line and a row of three tiles — so the
+   * real card replaces it without the page jumping. A merchant who has never run an
+   * upload sees this for one round trip and then nothing, which is the accepted
+   * trade: the common case is a returning merchant who does have a report, and for
+   * them an empty page that later pops a card in reads as a stall.
+   */
+  const renderRestoringSummary = () => (
+    <Layout.Section>
+      <Card>
+        <BlockStack gap="400">
+          <SkeletonDisplayText size="small" />
+          <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+            {[0, 1, 2].map((i) => (
+              <Card key={i} background="bg-surface-secondary">
+                <BlockStack gap="200">
+                  <SkeletonBodyText lines={1} />
+                  <SkeletonDisplayText size="medium" />
+                </BlockStack>
+              </Card>
+            ))}
+          </InlineGrid>
+        </BlockStack>
+      </Card>
+    </Layout.Section>
+  );
+
   const renderImportSummary = () => {
     if (!result) return null;
 
     const total = result.length;
     const success = result.filter((r) => !r.error).length;
     const failed = total - success;
-    const status = failed > 0 ? "Failed" : "Fulfilled successfully";
-    const statusTone = failed > 0 ? "warning" : "success";
+
+    // A run where 38 of 46 orders shipped is not "Failed". Calling it that was
+    // alarming and untrue \u2014 the merchant's actual question is how much got through,
+    // and the three tiles below answer it, so this only has to name the shape of the
+    // outcome. All three cases are spelled out rather than reduced to pass/fail.
+    const outcome =
+      failed === 0
+        ? { label: "All fulfilled", tone: "success" }
+        : success === 0
+        ? { label: "Nothing fulfilled", tone: "critical" }
+        : { label: `${success} of ${total} fulfilled`, tone: "attention" };
 
     return (
       <Layout.Section>
         <Card>
           <BlockStack gap="400">
-            <InlineStack gap="200" blockAlign="center">
-              <Box
-                background={
-                  failed > 0
-                    ? "bg-fill-caution-secondary"
-                    : "bg-fill-success-secondary"
-                }
-                borderRadius="full"
-                padding="200"
-                minWidth="fit-content"
-              >
-                <Text
-                  as="span"
-                  variant="bodySm"
-                  fontWeight="bold"
-                  tone={failed > 0 ? "caution" : "success"}
-                >
-                  {failed > 0 ? "!" : "\u2713"}
-                </Text>
-              </Box>
+            {/* The outcome as a real badge beside the title, which is also where the
+                empty <Badge tone="warning" /> used to sit further down the card \u2014
+                a Badge with no children renders as a stray coloured pill, which is
+                the orange dash that appeared next to "Status". */}
+            <InlineStack align="space-between" blockAlign="center" gap="200">
               <Text as="h2" variant="headingMd">
-                {restored ? "Your last run" : "Import Summary"}
+                {restored ? "Your last run" : "Import summary"}
               </Text>
+              <Badge tone={outcome.tone}>{outcome.label}</Badge>
             </InlineStack>
 
             {/* Said plainly, because the numbers below are identical either way and
@@ -350,8 +387,8 @@ export default function FulfillOrder() {
             <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
               <Card background="bg-surface-secondary">
                 <BlockStack gap="100">
-                  <Text variant="bodySm" tone="subdued">
-                    Total Orders
+                  <Text as="p" variant="bodySm" tone="subdued">
+                    Total orders
                   </Text>
                   <Text variant="headingXl" as="p">
                     {total}
@@ -360,7 +397,7 @@ export default function FulfillOrder() {
               </Card>
               <Card background="bg-surface-secondary">
                 <BlockStack gap="100">
-                  <Text variant="bodySm" tone="subdued">
+                  <Text as="p" variant="bodySm" tone="subdued">
                     Successful
                   </Text>
                   <Text variant="headingXl" as="p" tone="success">
@@ -370,7 +407,7 @@ export default function FulfillOrder() {
               </Card>
               <Card background="bg-surface-secondary">
                 <BlockStack gap="100">
-                  <Text variant="bodySm" tone="subdued">
+                  <Text as="p" variant="bodySm" tone="subdued">
                     Failed
                   </Text>
                   <Text
@@ -384,24 +421,15 @@ export default function FulfillOrder() {
               </Card>
             </InlineGrid>
 
+            {/* Two columns now, not three: Status moved up to the badge beside the
+                title, and repeating it here was the only thing that cell held. */}
             <Box background="bg-surface-secondary" borderRadius="200" padding="400">
-              <InlineGrid columns={{ xs: 1, sm: 3 }} gap="400">
+              <InlineGrid columns={{ xs: 1, sm: 2 }} gap="400">
                 <BlockStack gap="100">
-                  <Text variant="bodySm" tone="subdued">
-                    Status
-                  </Text>
-                  <InlineStack gap="200" blockAlign="center">
-                    <Badge tone={statusTone} />
-                    <Text variant="bodyMd" fontWeight="medium">
-                      {status}
-                    </Text>
-                  </InlineStack>
-                </BlockStack>
-                <BlockStack gap="100">
-                  <Text variant="bodySm" tone="subdued">
+                  <Text as="p" variant="bodySm" tone="subdued">
                     {restored ? "Last run" : "Date"}
                   </Text>
-                  <Text variant="bodyMd" fontWeight="medium">
+                  <Text as="p" variant="bodyMd" fontWeight="medium">
                     {/* An em dash when a restored report has no timestamp: the
                         summary is kept in memory as well as on disk, so a failed
                         write leaves rows to show and no date to show them under. */}
@@ -417,10 +445,10 @@ export default function FulfillOrder() {
                   </Text>
                 </BlockStack>
                 <BlockStack gap="100">
-                  <Text variant="bodySm" tone="subdued">
+                  <Text as="p" variant="bodySm" tone="subdued">
                     Source
                   </Text>
-                  <Text variant="bodyMd" fontWeight="medium">
+                  <Text as="p" variant="bodyMd" fontWeight="medium">
                     Epic Fulfill
                   </Text>
                 </BlockStack>
@@ -455,7 +483,7 @@ export default function FulfillOrder() {
           <BlockStack gap="400">
             <InlineStack align="space-between" blockAlign="center" gap="200">
               <Text as="h2" variant="headingMd">
-                Detailed Order Report
+                Detailed order report
               </Text>
               <InlineStack gap="200" blockAlign="center">
                 {/* Only offered when there is something in it. The failed sheet
@@ -494,10 +522,20 @@ export default function FulfillOrder() {
             >
               {paginatedItems.map((r, index) => {
                 const itemNumber = startIndex + index + 1;
-                const tone = r.error
+                // Badge and Text do not share a tone vocabulary: Badge has
+                // "attention", Text has "caution", and neither has the other's.
+                // "warning" is valid on Badge but not on Text — passing it emitted a
+                // class that does not exist, so the details on a warning row lost
+                // their colour silently.
+                const badgeTone = r.error
                   ? "critical"
                   : r.warning
-                  ? "warning"
+                  ? "attention"
+                  : "success";
+                const textTone = r.error
+                  ? "critical"
+                  : r.warning
+                  ? "caution"
                   : "success";
 
                 return (
@@ -522,12 +560,14 @@ export default function FulfillOrder() {
                           {r.trackingNumber || "-"}
                         </Link>
                       ) : (
-                        r.trackingNumber || "-"
+                        <Text as="span">{r.trackingNumber || "-"}</Text>
                       )}
                     </IndexTable.Cell>
-                    <IndexTable.Cell>{r.trackingCompany || "-"}</IndexTable.Cell>
                     <IndexTable.Cell>
-                      <Badge tone={r.warning ? "attention" : tone}>
+                      <Text as="span">{r.trackingCompany || "-"}</Text>
+                    </IndexTable.Cell>
+                    <IndexTable.Cell>
+                      <Badge tone={badgeTone}>
                         {r.error
                           ? "Failed"
                           : r.warning
@@ -536,7 +576,7 @@ export default function FulfillOrder() {
                       </Badge>
                     </IndexTable.Cell>
                     <IndexTable.Cell>
-                      <Text as="span" tone={tone} variant="bodySm">
+                      <Text as="span" tone={textTone} variant="bodySm">
                         {r.error || r.warning || "Fulfilled successfully"}
                       </Text>
                     </IndexTable.Cell>
@@ -546,7 +586,7 @@ export default function FulfillOrder() {
             </IndexTable>
 
             <InlineStack align="space-between" blockAlign="center" gap="400">
-              <Text variant="bodySm" tone="subdued">
+              <Text as="p" variant="bodySm" tone="subdued">
                 Showing {startIndex + 1} to{" "}
                 {Math.min(startIndex + itemsPerPage, totalItems)} of{" "}
                 {totalItems} orders
@@ -818,6 +858,8 @@ export default function FulfillOrder() {
           </Card>
         </Layout.Section>
 
+        {/* Only while the first request is still out and nothing has replaced it. */}
+        {restoring && !result && renderRestoringSummary()}
         {renderImportSummary()}
         {renderDetailedResults()}
       </Layout>
