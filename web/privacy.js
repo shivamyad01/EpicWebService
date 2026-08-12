@@ -1,8 +1,6 @@
 import { DeliveryMethod } from "@shopify/shopify-api";
 
 import { deleteFulfillmentSummary } from "./services/fulfillment.service.js";
-import { deleteRunRecord } from "./services/run.service.js";
-import { deleteSettings } from "./services/settings.service.js";
 import { invalidateSubscription } from "./services/billing.service.js";
 
 /**
@@ -13,17 +11,12 @@ import { invalidateSubscription } from "./services/billing.service.js";
  * fulfillment run per shop under config.reportDir — order names, tracking
  * numbers and carriers — which shop/redact is required to erase.
  *
- * What the app holds, and where. This list is the redaction checklist — anything
- * added to it that is not deleted below is data left behind after a merchant asked
- * for it to be gone:
- *   - reports/{shop}.json      the last run's report. Shop data. Deleted below.
- *   - reports/{shop}.run.json  that run's status and counts. Deleted below.
- *   - shop_settings (sqlite)   the notification preference. Deleted below.
- *   - the session store        access token per shop. Deleted by the SDK's own
- *                              app/uninstalled handler, before redaction is due.
- *   - an in-memory cache       subscription state, the last report and any live
- *                              run, dropped here too so a restart cannot
- *                              resurrect them.
+ * What the app holds, and where:
+ *   - reports/{shop}.json   the last run's report. Shop data. Deleted below.
+ *   - the session store     access token per shop. Deleted by the SDK's own
+ *                           app/uninstalled handler, before redaction is due.
+ *   - an in-memory cache    subscription state and the last report, dropped here
+ *                           too so a restart cannot resurrect either.
  *
  * No customer names, emails, phone numbers or addresses are ever read or kept —
  * the app works from order names and tracking numbers a merchant types into a
@@ -86,39 +79,17 @@ export default {
     deliveryMethod: DeliveryMethod.Http,
     callbackUrl: "/api/webhooks",
     callback: async (_topic, shop) => {
-      // Each one is attempted independently. A failure part-way through must not
-      // leave the rest of the shop's data behind.
-      const removed = [];
-
       try {
-        if (deleteFulfillmentSummary(shop)) removed.push("report");
-      } catch (err) {
-        console.error(`[privacy] ${shop}: could not delete the report:`, err.message);
-      }
-
-      try {
-        if (deleteRunRecord(shop)) removed.push("run record");
-      } catch (err) {
-        console.error(`[privacy] ${shop}: could not delete the run record:`, err.message);
-      }
-
-      try {
-        if (await deleteSettings(shop)) removed.push("settings");
-      } catch (err) {
-        console.error(`[privacy] ${shop}: could not delete settings:`, err.message);
-      }
-
-      try {
+        const had = deleteFulfillmentSummary(shop);
         invalidateSubscription(shop);
+        console.log(
+          `[privacy] shop/redact for ${shop}: ${
+            had ? "fulfillment report deleted" : "no stored report"
+          }, cached state dropped`
+        );
       } catch (err) {
-        console.error(`[privacy] ${shop}: could not drop cached billing state:`, err.message);
+        console.error(`[privacy] shop/redact failed for ${shop}:`, err.message);
       }
-
-      console.log(
-        `[privacy] shop/redact for ${shop}: ${
-          removed.length ? `deleted ${removed.join(", ")}` : "nothing stored"
-        }`
-      );
     },
   },
 };

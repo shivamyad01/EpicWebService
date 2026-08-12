@@ -114,34 +114,4 @@ export const saveSettings = async (shop, settings) => {
   return clean;
 };
 
-/**
- * Erase a shop's settings.
- *
- * Called from the shop/redact webhook. Shop settings are shop data and have to go
- * with everything else — they were being left behind, because this row was added
- * after the redaction handler was written.
- *
- * Never throws: Shopify retries a webhook that does not return 200, and one store
- * failing to redact must not stop the rest of the redaction from happening.
- *
- * @returns {Promise<boolean>} whether a row was actually removed
- */
-export const deleteSettings = async (shop) => {
-  try {
-    const db = await getDb();
-
-    const removed = await new Promise((resolve, reject) => {
-      // `function` not an arrow: sqlite3 reports the row count on `this`.
-      db.run(`DELETE FROM ${TABLE} WHERE shop = ?`, [shop], function (err) {
-        return err ? reject(err) : resolve(this.changes);
-      });
-    });
-
-    return removed > 0;
-  } catch (err) {
-    console.error(`[settings] delete failed for ${shop}:`, err.message);
-    return false;
-  }
-};
-
-export default { getDefaultSettings, getSettings, saveSettings, deleteSettings };
+export default { getDefaultSettings, getSettings, saveSettings };
