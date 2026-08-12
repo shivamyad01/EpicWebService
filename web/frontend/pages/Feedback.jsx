@@ -291,7 +291,9 @@ export default function Feedback() {
 
   return (
     <Page narrowWidth>
-      <TitleBar title={t("Feedback.title") || "Feedback"} />
+      {/* The nav item's name, not the page's headline — the admin header says where
+          you are, and "We value your feedback" is not the name of anywhere. */}
+      <TitleBar title={t("NavigationMenu.feedback") || "Feedback"} />
       <Layout>
         <Layout.Section>
           {/* Card lost `sectioned` in Polaris 12 and never took `style` — the

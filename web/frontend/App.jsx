@@ -19,10 +19,16 @@ export default function App() {
     <PolarisProvider>
       <BrowserRouter>
         <ErrorBoundary>
+          {/* Workflow order: finding orders produces the sheet that uploading
+              needs, so it comes first. The two were the other way round, which
+              put step two ahead of step one and left the names a single word
+              apart — "Fulfill Order" (singular, for a bulk tool) sitting next to
+              "Orders to fulfill". Each screen now has one name, used here, in its
+              title bar, and in its heading. */}
           <NavMenu>
             <a href="/" rel="home" />
+            <a href="/orders">Find orders</a>
             <a href="/fulfillorder">{t("NavigationMenu.fulfillOrder")}</a>
-            <a href="/orders">Orders to fulfill</a>
             {/* Hardcoded like Settings below — the locale files only carry the two
                 keys that were translated, and a half-translated key reads worse
                 than an untranslated one. */}

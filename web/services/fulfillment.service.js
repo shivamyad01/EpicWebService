@@ -103,6 +103,23 @@ export const getLastFulfillmentSummary = (shop) => {
 };
 
 /**
+ * When the stored report was last written.
+ *
+ * Taken from the file's mtime rather than kept inside the summary: the summary is
+ * an array of row results with nowhere to hang a timestamp, and a page showing a
+ * report restored after a reload has to say when that run happened instead of
+ * implying it just finished. Null when there is no file to read — the caller is
+ * expected to cope, since the in-memory copy can outlive a failed write.
+ */
+export const getLastFulfillmentSavedAt = (shop) => {
+  try {
+    return fs.statSync(reportPath(shop)).mtime.toISOString();
+  } catch {
+    return null;
+  }
+};
+
+/**
  * Set the fulfillment summary for a shop, in memory and on disk.
  * A failed write must never fail the fulfillment run that produced the report.
  */
@@ -1075,6 +1092,7 @@ export const generateFulfillmentReport = (summary, options = {}) => {
 
 export default {
   getLastFulfillmentSummary,
+  getLastFulfillmentSavedAt,
   setFulfillmentSummary,
   deleteFulfillmentSummary,
   parseExcelFile,

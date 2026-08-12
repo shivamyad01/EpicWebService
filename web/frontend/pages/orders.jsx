@@ -245,7 +245,7 @@ export default function Orders() {
 
   return (
     <Page>
-      <TitleBar title="Orders to fulfill" />
+      <TitleBar title="Find orders" />
 
       <Layout>
         <Layout.Section>
