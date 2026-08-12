@@ -10,7 +10,6 @@ import { requireActiveSubscription } from "../middleware/billing.middleware.js";
 import {
   bulkFulfillOrders,
   getFulfillmentReport,
-  getFulfillmentProgress,
   downloadFulfillmentReport,
   downloadSampleFile,
   downloadPendingOrdersSheet,
@@ -61,16 +60,6 @@ router.post(
  * them out of their own fulfillment record.
  */
 router.get("/fulfillment-report", getFulfillmentReport);
-
-/**
- * GET /api/orders/fulfillment-progress
- * Whether a run is going for this shop, how far it has got, and whether the last one
- * was cut short by a restart.
- *
- * A run continues after the merchant closes the app, so the page needs a way to find
- * out that something is still happening. Ungated, like the report above.
- */
-router.get("/fulfillment-progress", getFulfillmentProgress);
 
 /**
  * GET /api/orders/fulfillment-report/download

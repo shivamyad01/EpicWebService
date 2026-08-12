@@ -16,14 +16,6 @@ import {
 } from "../services/fulfillment.service.js";
 import { generateSampleWorkbook } from "../services/sample.service.js";
 import {
-  beginRun,
-  advanceRun,
-  finishRun,
-  getRun,
-  readRunRecord,
-} from "../services/run.service.js";
-import { ensureValidOfflineSession } from "../services/token.service.js";
-import {
   countOrdersByStatus,
   fetchOrdersForStatus,
   validateRange,
@@ -110,114 +102,82 @@ export const bulkFulfillOrders = async (req, res) => {
     // single bad sheet emailed every customer in it with no way to prevent that.
     const notifyCustomer = req.body?.notifyCustomer === "true";
 
-    const totalOrders = orders.length;
-
-    // One run per shop, and this is the line that makes running in the background
-    // safe at all. A merchant who closes the app, comes back and uploads the same
-    // sheet again is turned away here instead of starting a second pass over orders
-    // the first run is still working through — which fulfils them twice and emails
-    // the customer twice, neither of which can be undone.
-    const claim = beginRun(shop, totalOrders);
-    if (!claim.ok) {
-      cleanupTempFile(req.file.path);
-      return res.status(409).json({
-        error: "A fulfillment run is already in progress",
-        message:
-          `${claim.run.processed} of ${claim.run.total} rows are done. Wait for it to ` +
-          `finish — closing the app does not stop it.`,
-        progress: {
-          total: claim.run.total,
-          processed: claim.run.processed,
-          startedAt: new Date(claim.run.startedAt).toISOString(),
-        },
-      });
-    }
-
-    // The run does not stop when the browser does. nginx cuts the request at 300s and
-    // the merchant may have closed the app long before, but the sheet is parsed and
-    // the token can be rotated without a request, so there is nothing to gain by
-    // abandoning half of it. This flag only records that there is no socket left to
-    // answer on.
+    // A long run can outlive the request: nginx gives up at 300s and the browser
+    // sees a 504, but Node keeps the handler alive. Without this the app carried on
+    // fulfilling orders and emailing customers for an upload the merchant already
+    // saw fail, and they would re-upload on top of it.
     let clientGone = false;
     res.on("close", () => {
       if (!res.writableEnded) {
         clientGone = true;
-        console.warn(`[bulkFulfill] ${shop}: client left, continuing in the background`);
+        console.warn(`[bulkFulfill] client disconnected for ${shop}, stopping after the current batch`);
       }
     });
 
     const results = [];
+    const totalOrders = orders.length;
     const groups = groupRowsByOrder(orders);
-    let runSession = session;
-    let runClient = client;
+    let stoppedEarly = false;
 
-    try {
-      // Batch over groups, not rows, so no two rows for the same order run at once
-      for (let i = 0; i < groups.length; i += BATCH_SIZE) {
-        // Offline tokens now expire after an hour and are normally rotated by the
-        // middleware on each request. A background run has no requests, so a sheet
-        // that takes longer than the token lives would start failing every row on an
-        // expired token. Re-reading the session per batch keeps it valid; the helper
-        // is a no-op until the token is actually near expiry.
-        try {
-          const fresh = await ensureValidOfflineSession(shop);
-          if (fresh?.accessToken && fresh.accessToken !== runSession.accessToken) {
-            runSession = fresh;
-            runClient = new shopify.api.clients.Graphql({ session: fresh });
-            console.log(`[bulkFulfill] ${shop}: rotated the access token mid-run`);
-          }
-        } catch (tokenErr) {
-          // Carry on with the token in hand — it may still have minutes left, and
-          // failing the whole run over a refresh hiccup would be worse.
-          console.warn(`[bulkFulfill] ${shop}: token refresh failed:`, tokenErr.message);
-        }
-
-        const batch = groups.slice(i, i + BATCH_SIZE);
-
-        // Groups run concurrently; rows inside a group run one after another
-        const batchResults = await Promise.all(
-          batch.map(async (group) => {
-            const groupResults = [];
-            for (const order of group) {
-              groupResults.push(
-                await processOrderFulfillment(order, runSession, runClient, notifyCustomer)
-              );
-            }
-            return groupResults;
-          })
-        );
-
-        results.push(...batchResults.flat());
-        advanceRun(shop, results.length);
-
-        // Saved every batch, not only at the end. A redeploy mid-run used to lose the
-        // entire report including the orders that had already shipped, leaving no
-        // record of what went out. A few KB per batch buys a survivable report.
-        setFulfillmentSummary(shop, results);
-
-        // Delay between batches to avoid rate limits
-        if (i + BATCH_SIZE < groups.length) {
-          await sleep(BATCH_DELAY);
-        }
+    // Batch over groups, not rows, so no two rows for the same order run at once
+    for (let i = 0; i < groups.length; i += BATCH_SIZE) {
+      if (clientGone) {
+        stoppedEarly = true;
+        break;
       }
-    } finally {
-      // Release the slot whether the sheet finished or a row threw, or this shop
-      // could never start another run.
-      finishRun(shop);
+
+      const batch = groups.slice(i, i + BATCH_SIZE);
+
+      // Groups run concurrently; rows inside a group run one after another
+      const batchResults = await Promise.all(
+        batch.map(async (group) => {
+          const groupResults = [];
+          for (const order of group) {
+            groupResults.push(
+              await processOrderFulfillment(order, session, client, notifyCustomer)
+            );
+          }
+          return groupResults;
+        })
+      );
+
+      results.push(...batchResults.flat());
+
+      // Delay between batches to avoid rate limits
+      if (i + BATCH_SIZE < groups.length) {
+        await sleep(BATCH_DELAY);
+      }
     }
 
+    // Rows never reached must show up in the report, or a merchant reading it would
+    // believe those orders were considered and found fine
+    if (stoppedEarly) {
+      const processed = results.length;
+      for (const order of orders.slice(processed)) {
+        results.push({
+          orderNumber: String(order.OrderNumber || ""),
+          trackingNumber: String(order.TrackingNumber || ""),
+          trackingCompany: order.ShippingCarrier || "",
+          trackingUrl: "",
+          error: "Not processed - the upload was interrupted. Re-upload these rows."
+        });
+      }
+      console.warn(`[bulkFulfill] ${shop}: stopped after ${processed}/${totalOrders} rows`);
+    }
+
+    // Store results for later retrieval
     setFulfillmentSummary(shop, results);
+
+    // Clean up temp file
     cleanupTempFile(req.file.path);
 
+    // Calculate summary stats
     const successCount = results.filter(r => !r.error).length;
     const failedCount = results.filter(r => r.error).length;
 
-    // Nothing to answer on if the browser gave up; the report is saved and the page
-    // picks it up next time it opens.
+    // Nothing to write to if the browser already gave up; the report is saved, so
+    // the merchant can still download it
     if (clientGone) {
-      console.log(
-        `[bulkFulfill] ${shop}: finished in the background — ${successCount} fulfilled, ${failedCount} failed`
-      );
       return;
     }
 
@@ -231,15 +191,6 @@ export const bulkFulfillOrders = async (req, res) => {
     });
   } catch (err) {
     console.error("Bulk fulfillment error:", err);
-
-    // Belt and braces around the slot. The inner finally covers everything once the
-    // loop starts; this covers a throw before it. Wrapped because an error handler
-    // that throws is how a real failure turns into an empty 500 with no message.
-    try {
-      finishRun(res.locals.shopify?.session?.shop, { interrupted: true });
-    } catch (releaseErr) {
-      console.error("Could not release the run slot:", releaseErr.message);
-    }
 
     // Clean up temp file on error
     if (req.file?.path) {
@@ -255,46 +206,6 @@ export const bulkFulfillOrders = async (req, res) => {
       message: err.message
     });
   }
-};
-
-/**
- * What the shop's fulfillment is doing right now.
- *
- * Polled by the upload page, which cannot otherwise tell the difference between "no
- * run" and "a run you started before you closed the app is still going". Also
- * reports the last run when it was cut short by a restart, so a report that stops
- * partway is not presented as a complete one.
- *
- * Outside the subscription gate, like the report itself: this describes work the
- * merchant has already paid for.
- */
-export const getFulfillmentProgress = (req, res) => {
-  const { shop } = res.locals.shopify.session;
-  const run = getRun(shop);
-
-  if (run) {
-    return res.status(200).json({
-      running: true,
-      total: run.total,
-      processed: run.processed,
-      startedAt: new Date(run.startedAt).toISOString(),
-    });
-  }
-
-  // Not running. If the last one never finished, the process it belonged to died —
-  // say so, because the saved report stops wherever it got to.
-  const last = readRunRecord(shop);
-  if (last?.interrupted) {
-    return res.status(200).json({
-      running: false,
-      interrupted: true,
-      total: last.total,
-      processed: last.processed,
-      finishedAt: last.finishedAt,
-    });
-  }
-
-  return res.status(200).json({ running: false });
 };
 
 /**
@@ -545,7 +456,6 @@ export const downloadFulfillmentReport = (req, res) => {
 export default {
   bulkFulfillOrders,
   getFulfillmentReport,
-  getFulfillmentProgress,
   downloadFulfillmentReport,
   downloadSampleFile,
   downloadPendingOrdersSheet,

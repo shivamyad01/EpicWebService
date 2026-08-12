@@ -20,7 +20,6 @@ import {
   Link,
   SkeletonBodyText,
   SkeletonDisplayText,
-  ProgressBar,
 } from "@shopify/polaris";
 import { FileIcon, UploadIcon, XIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
@@ -121,17 +120,9 @@ export default function FulfillOrder() {
   // in once the request landed, which reads as the app being slow rather than as
   // something arriving.
   const [restoring, setRestoring] = useState(true);
-  // A run this tab did not start: one left going when the app was closed, or started
-  // in another tab. Kept apart from `uploading`, which is this tab's own upload.
-  const [backgroundRun, setBackgroundRun] = useState(null);
-  // Set when the last run was killed by a restart, so a report that stops partway is
-  // not presented as a finished one.
-  const [interrupted, setInterrupted] = useState(null);
   // Set the instant an upload begins, so a slow restore cannot land on top of a
   // fresher report. Same reasoning as `touchedNotify` below.
   const runStarted = useRef(false);
-  // Read by the poller, which must not resubscribe on every tick.
-  const wasRunning = useRef(false);
   const billing = useBilling();
   const navigate = useNavigate();
   const itemsPerPage = 5;
@@ -196,60 +187,6 @@ export default function FulfillOrder() {
     };
   }, []);
 
-  // Watch what the shop's fulfillment is actually doing.
-  //
-  // A run keeps going after the app is closed, so on open the shop may already be
-  // mid-run — the page has to say so rather than show the previous report as if
-  // nothing were happening. When the run ends, pull in the report it produced.
-  useEffect(() => {
-    let cancelled = false;
-    let timer = null;
-
-    const loadReport = async () => {
-      const { report, savedAt } = await safeFetchJson("/api/orders/fulfillment-report");
-      if (cancelled || !report?.length) return;
-      setResult(report);
-      setCompletedAt(savedAt || null);
-      setRestored(true);
-    };
-
-    const poll = async () => {
-      try {
-        const state = await safeFetchJson("/api/orders/fulfillment-progress");
-        if (cancelled) return;
-
-        if (state.running) {
-          wasRunning.current = true;
-          setBackgroundRun(state);
-          setInterrupted(null);
-          // 2s: the count visibly moves without the polling costing anything.
-          timer = setTimeout(poll, 2000);
-          return;
-        }
-
-        setBackgroundRun(null);
-        setInterrupted(state.interrupted ? state : null);
-
-        // It was running while this tab watched, and now it is not — the report it
-        // just wrote is the one to show.
-        if (wasRunning.current) {
-          wasRunning.current = false;
-          await loadReport();
-        }
-      } catch {
-        // Progress is a nicety. A failed check must not take the page down with it.
-        if (!cancelled) setBackgroundRun(null);
-      }
-    };
-
-    poll();
-
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, []);
-
   // A run over a few hundred rows takes long enough that a static "processing"
   // message starts to read like a hang. A counting clock is the one piece of real
   // progress information available here, so it is the one thing shown.
@@ -306,7 +243,6 @@ export default function FulfillOrder() {
     // An upload owns the screen from here; a restore that has not landed yet must
     // not leave a placeholder sitting under the run in progress.
     setRestoring(false);
-    setInterrupted(null);
     setUploading(true);
     setError(null);
     setResult(null);
@@ -330,16 +266,9 @@ export default function FulfillOrder() {
       setCurrentPage(1);
       setFile(null);
     } catch (err) {
-      // 409 means this shop already has a run going — almost always one the merchant
-      // left running when they closed the app. That is progress to show, not an
-      // error; the poller takes it from here.
-      if (err.status === 409 && err.data?.progress) {
-        setBackgroundRun({ running: true, ...err.data.progress });
-        wasRunning.current = true;
-        setError(null);
-      } else if (!billing.applySubscriptionError(err)) {
-        // A plan can lapse between page load and upload. The gate's 402 turns into
-        // the paywall banner rather than a raw error the merchant cannot act on.
+      // A plan can lapse between page load and upload. The gate's 402 turns into
+      // the paywall banner rather than a raw error the merchant cannot act on.
+      if (!billing.applySubscriptionError(err)) {
         setError(err.message);
       }
     } finally {
@@ -411,78 +340,6 @@ export default function FulfillOrder() {
       </Card>
     </Layout.Section>
   );
-
-  /**
-   * A run going without this tab driving it.
-   *
-   * The merchant closed the app mid-upload, or started one elsewhere. Either way the
-   * server is still working through the sheet, so show how far it has got and say
-   * plainly that leaving is safe — that is the whole point of the feature, and a
-   * merchant who does not know it will sit and watch the tab instead.
-   */
-  const renderBackgroundRun = () => {
-    if (!backgroundRun) return null;
-
-    const { processed = 0, total = 0 } = backgroundRun;
-    const pct = total > 0 ? Math.min(100, Math.round((processed / total) * 100)) : 0;
-
-    return (
-      <Layout.Section>
-        <Card>
-          <BlockStack gap="300">
-            <InlineStack gap="300" blockAlign="center" wrap={false}>
-              <Spinner accessibilityLabel="Fulfilling your orders" size="small" />
-              <BlockStack gap="050">
-                <Text as="h2" variant="headingMd">
-                  Fulfilling your orders…
-                </Text>
-                <Text as="p" variant="bodySm" tone="subdued">
-                  {processed} of {total} rows done. This keeps running if you close
-                  the app — the report will be here when you come back.
-                </Text>
-              </BlockStack>
-            </InlineStack>
-
-            {/* Determinate, unlike the upload panel: the server reports a real row
-                count, so there is an honest percentage to show. */}
-            <ProgressBar progress={pct} size="small" tone="primary" />
-          </BlockStack>
-        </Card>
-      </Layout.Section>
-    );
-  };
-
-  /**
-   * The last run was killed by a restart.
-   *
-   * The report below it is real but stops partway, so it has to be labelled — a
-   * merchant reading "25 fulfilled" for a sheet of 46 would otherwise believe the
-   * other 21 were considered and found fine.
-   */
-  const renderInterrupted = () => {
-    if (!interrupted || backgroundRun) return null;
-
-    const { processed = 0, total = 0 } = interrupted;
-    const remaining = Math.max(0, total - processed);
-
-    return (
-      <Layout.Section>
-        <Banner
-          title="Your last run was interrupted"
-          tone="warning"
-          onDismiss={() => setInterrupted(null)}
-        >
-          <p>
-            The app restarted while it was working. {processed} of {total} rows were
-            fulfilled and are in the report below.
-            {remaining > 0
-              ? ` The remaining ${remaining} were not attempted — upload those rows again.`
-              : ""}
-          </p>
-        </Banner>
-      </Layout.Section>
-    );
-  };
 
   const renderImportSummary = () => {
     if (!result) return null;
@@ -985,13 +842,9 @@ export default function FulfillOrder() {
                 <Button
                   variant="primary"
                   onClick={handleUpload}
-                  disabled={
-                    !file || uploading || blockedByBilling || Boolean(backgroundRun)
-                  }
+                  disabled={!file || uploading || blockedByBilling}
                 >
-                  {uploading || backgroundRun
-                    ? "Fulfilling…"
-                    : "Upload and Fulfill Orders"}
+                  {uploading ? "Fulfilling…" : "Upload and Fulfill Orders"}
                 </Button>
 
                 {/* Left enabled without a plan on purpose — a merchant deciding
@@ -1005,10 +858,8 @@ export default function FulfillOrder() {
           </Card>
         </Layout.Section>
 
-        {renderBackgroundRun()}
-        {renderInterrupted()}
         {/* Only while the first request is still out and nothing has replaced it. */}
-        {restoring && !result && !backgroundRun && renderRestoringSummary()}
+        {restoring && !result && renderRestoringSummary()}
         {renderImportSummary()}
         {renderDetailedResults()}
       </Layout>
