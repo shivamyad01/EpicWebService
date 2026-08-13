@@ -320,7 +320,7 @@ export default function BulkOrderFulfillmentPage() {
     <Page fullWidth>
       {/* Every other screen names itself in the admin header; this one left it
           blank, on the page where a merchant most needs to know where they are. */}
-      <TitleBar title="Epic Fulfill" />
+      <TitleBar title="EPIC: Bulk Order Fulfillment" />
 
       <BlockStack gap="400">
         {error && (

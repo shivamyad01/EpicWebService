@@ -449,7 +449,7 @@ export default function FulfillOrder() {
                     Source
                   </Text>
                   <Text as="p" variant="bodyMd" fontWeight="medium">
-                    Epic Fulfill
+                    EPIC: Bulk Order Fulfillment
                   </Text>
                 </BlockStack>
               </InlineGrid>
