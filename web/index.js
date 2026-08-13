@@ -173,6 +173,23 @@ const server = app.listen(config.port, "0.0.0.0", () => {
   console.log(`🌐 Listening on: 0.0.0.0:${config.port}`);
 });
 
+// A bulk upload of several hundred orders makes roughly four Shopify calls per
+// row and can run for minutes. Node's own requestTimeout defaults to 300s and
+// aborts the request from under the handler, so raising nginx's
+// proxy_read_timeout alone just moves the failure five minutes later — the
+// merchant still gets a dead request mid-run and no way to tell which orders
+// went through.
+//
+// Keep this above the proxy_read_timeout in /etc/nginx/sites-available/fulfill
+// (900s at the time of writing). headersTimeout must exceed requestTimeout, or
+// it fires first and the longer value never applies.
+//
+// This is a ceiling, not a fix: holding an HTTP connection open for minutes is
+// fragile whatever the number is. The real answer is to run the fulfillment as
+// a background job and let the client poll the report.
+server.requestTimeout = 15 * 60 * 1000;
+server.headersTimeout = 16 * 60 * 1000;
+
 // Graceful shutdown
 process.on("SIGTERM", () => {
   console.log("SIGTERM received, shutting down gracefully...");
